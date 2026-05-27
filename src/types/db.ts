@@ -1,7 +1,10 @@
+import type { Role } from '@/lib/auth'
+
 export type ClienteTipo = 'pf' | 'pj'
 
 export type Cliente = {
   id: string
+  user_id: string
   tipo: ClienteTipo
   documento: string
   nome: string
@@ -22,6 +25,7 @@ export type CobrancaStatus = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
 
 export type Cobranca = {
   id: string
+  user_id: string
   cliente_id: string
   descricao: string
   valor: number
@@ -31,22 +35,54 @@ export type Cobranca = {
   created_at: string
 }
 
+export type ProfileRow = {
+  id: string
+  email: string | null
+  nome: string | null
+  role: Role
+  created_at: string
+}
+
+type TableShape<R, I, U> = {
+  Row: R
+  Insert: I
+  Update: U
+  Relationships: []
+}
+
 export type Database = {
   public: {
     Tables: {
-      clientes: {
-        Row: Cliente
-        Insert: Omit<Cliente, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Omit<Cliente, 'id' | 'created_at'>>
-      }
-      cobrancas: {
-        Row: Cobranca
-        Insert: Omit<Cobranca, 'id' | 'created_at'> & { id?: string; created_at?: string }
-        Update: Partial<Omit<Cobranca, 'id' | 'created_at'>>
-      }
+      clientes: TableShape<
+        Cliente,
+        Partial<Pick<Cliente, 'id' | 'user_id' | 'created_at'>> &
+          Omit<Cliente, 'id' | 'user_id' | 'created_at'>,
+        Partial<Omit<Cliente, 'id' | 'created_at'>>
+      >
+      cobrancas: TableShape<
+        Cobranca,
+        Partial<Pick<Cobranca, 'id' | 'user_id' | 'created_at'>> &
+          Omit<Cobranca, 'id' | 'user_id' | 'created_at'>,
+        Partial<Omit<Cobranca, 'id' | 'created_at'>>
+      >
+      profiles: TableShape<
+        ProfileRow,
+        Partial<ProfileRow> & { id: string },
+        Partial<Omit<ProfileRow, 'id' | 'created_at'>>
+      >
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    Functions: {
+      admin_create_user: {
+        Args: { p_email: string; p_password: string; p_nome: string | null; p_role: Role }
+        Returns: string
+      }
+      admin_delete_user: {
+        Args: { target_id: string }
+        Returns: void
+      }
+    }
     Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
   }
 }

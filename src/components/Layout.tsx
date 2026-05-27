@@ -7,9 +7,9 @@ import { confirmDialog, toast } from '@/lib/dialogs'
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true, adminOnly: false },
-  { to: '/clientes', label: 'Clientes', icon: Users, adminOnly: false },
-  { to: '/cobrancas', label: 'Cobranças', icon: Receipt, adminOnly: false },
-  { to: '/usuarios', label: 'Usuários', icon: ShieldCheck, adminOnly: true },
+  { to: '/clientes', label: 'Clientes', icon: Users, end: false, adminOnly: false },
+  { to: '/cobrancas', label: 'Cobranças', icon: Receipt, end: false, adminOnly: false },
+  { to: '/usuarios', label: 'Usuários', icon: ShieldCheck, end: false, adminOnly: true },
 ] as const
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {

@@ -19,7 +19,7 @@ export function useRealtime(tables: string[], onChange: () => void) {
     const channel = supabase.channel(`watch:${key}`)
     for (const table of tables) {
       channel.on(
-        // @ts-expect-error — postgres_changes não tem types completos
+        // @ts-ignore — postgres_changes não tem types completos
         'postgres_changes',
         { event: '*', schema: 'public', table },
         () => {
