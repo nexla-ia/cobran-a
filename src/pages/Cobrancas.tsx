@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, FileDown, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban } from 'lucide-react'
+import { Plus, Trash2, FileDown, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase, isSupabaseConfigured, syncOverdueCobrancas } from '@/lib/supabase'
 import type { Cliente, Cobranca, CobrancaStatus } from '@/types/db'
@@ -83,6 +83,7 @@ export default function Cobrancas() {
   const [form, setForm] = useState<Form>(empty)
   const [saving, setSaving] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'todos' | CobrancaStatus>('todos')
+  const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
@@ -349,8 +350,17 @@ export default function Cobrancas() {
     status: (isOverdue(r) ? 'atrasado' : r.status) as CobrancaStatus,
   }))
 
-  const filtered =
-    statusFilter === 'todos' ? enriched : enriched.filter((r) => r.status === statusFilter)
+  const q = query.trim().toLowerCase()
+  const filtered = enriched.filter((r) => {
+    if (statusFilter !== 'todos' && r.status !== statusFilter) return false
+    if (!q) return true
+    const cli = clienteMap.get(r.cliente_id)
+    return (
+      r.descricao.toLowerCase().includes(q) ||
+      (cli?.nome?.toLowerCase().includes(q) ?? false) ||
+      (cli?.documento?.toLowerCase().includes(q) ?? false)
+    )
+  })
 
   const totalAberto = enriched
     .filter((r) => r.status === 'pendente' || r.status === 'atrasado')
@@ -423,7 +433,29 @@ export default function Cobrancas() {
             </button>
           ))}
         </div>
-        <div className="text-xs text-fg-4 tabular">{filtered.length} resultado(s)</div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative">
+            <Search className="size-3.5 text-fg-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar descrição, cliente ou documento"
+              className="h-8 w-64 max-w-full pl-8 pr-7 text-xs bg-surface border border-border rounded-md text-fg placeholder:text-fg-4 outline-none focus:border-fg-3 transition"
+            />
+            {query && (
+              <button
+                onClick={() => setQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 size-5 grid place-items-center text-fg-4 hover:text-fg rounded"
+                aria-label="Limpar busca"
+                type="button"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+          <div className="text-xs text-fg-4 tabular">{filtered.length} resultado(s)</div>
+        </div>
       </div>
 
       {selected.size > 0 && (
