@@ -25,9 +25,20 @@ type Form = {
   email: string
   password: string
   role: Role
+  evolution_instancia: string
+  evolution_api_key: string
+  evolution_webhook_url: string
 }
 
-const empty: Form = { nome: '', email: '', password: '', role: 'user' }
+const empty: Form = {
+  nome: '',
+  email: '',
+  password: '',
+  role: 'user',
+  evolution_instancia: '',
+  evolution_api_key: '',
+  evolution_webhook_url: '',
+}
 
 export default function Usuarios() {
   const { isAdmin, loading: authLoading, session } = useAuth()
@@ -82,6 +93,9 @@ export default function Usuarios() {
       email: p.email ?? '',
       password: '',
       role: p.role,
+      evolution_instancia: p.evolution_instancia ?? '',
+      evolution_api_key: p.evolution_api_key ?? '',
+      evolution_webhook_url: p.evolution_webhook_url ?? '',
     })
     setOpen(true)
   }
@@ -105,7 +119,13 @@ export default function Usuarios() {
         })
         const updatePromise = supabase
           .from('profiles')
-          .update({ nome: form.nome.trim() || null, role: form.role })
+          .update({
+            nome: form.nome.trim() || null,
+            role: form.role,
+            evolution_instancia: form.evolution_instancia.trim() || null,
+            evolution_api_key: form.evolution_api_key.trim() || null,
+            evolution_webhook_url: form.evolution_webhook_url.trim() || null,
+          })
           .eq('id', editing.id)
         const timeout = new Promise<{ error: { message: string } }>((_, reject) =>
           setTimeout(() => reject(new Error('Timeout de 15s na atualização')), 15000),
@@ -130,6 +150,9 @@ export default function Usuarios() {
         p_password: form.password,
         p_nome: form.nome.trim() || null,
         p_role: form.role,
+        p_evolution_instancia: form.evolution_instancia.trim() || null,
+        p_evolution_api_key: form.evolution_api_key.trim() || null,
+        p_evolution_webhook_url: form.evolution_webhook_url.trim() || null,
       })
       if (error) {
         toast.error(error.message)
@@ -345,6 +368,35 @@ export default function Usuarios() {
               )}
             />
           </Field>
+
+          <div className="pt-4 mt-2 border-t border-border space-y-3">
+            <div className="text-xs font-medium text-fg-2">Evolution / Webhook</div>
+            <Field label="Instância" hint="Nome da instância na Evolution.">
+              <Input
+                autoComplete="off"
+                value={form.evolution_instancia}
+                onChange={(e) => setForm({ ...form, evolution_instancia: e.target.value })}
+                placeholder="ex.: akira-prod"
+              />
+            </Field>
+            <Field label="API key" hint="Token da instância. Fica oculto até clicar no olho.">
+              <PasswordInput
+                autoComplete="off"
+                value={form.evolution_api_key}
+                onChange={(e) => setForm({ ...form, evolution_api_key: e.target.value })}
+                placeholder="UUID da instância"
+              />
+            </Field>
+            <Field label="Webhook URL" hint="Endpoint do n8n que recebe as cobranças deste usuário.">
+              <Input
+                type="url"
+                autoComplete="off"
+                value={form.evolution_webhook_url}
+                onChange={(e) => setForm({ ...form, evolution_webhook_url: e.target.value })}
+                placeholder="https://n8n.exemplo.com/webhook/..."
+              />
+            </Field>
+          </div>
 
           {editing && (
             <p className="text-xs text-fg-3 pt-2 border-t border-border">

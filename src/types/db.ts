@@ -40,6 +40,9 @@ export type ProfileRow = {
   email: string | null
   nome: string | null
   role: Role
+  evolution_instancia: string | null
+  evolution_api_key: string | null
+  evolution_webhook_url: string | null
   created_at: string
 }
 
@@ -74,7 +77,15 @@ export type Database = {
     Views: Record<string, never>
     Functions: {
       admin_create_user: {
-        Args: { p_email: string; p_password: string; p_nome: string | null; p_role: Role }
+        Args: {
+          p_email: string
+          p_password: string
+          p_nome: string | null
+          p_role: Role
+          p_evolution_instancia: string | null
+          p_evolution_api_key: string | null
+          p_evolution_webhook_url: string | null
+        }
         Returns: string
       }
       admin_delete_user: {
