@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "caveman": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/caveman/SKILL.md",
+      "computedHash": "7935e83f9c6a8b7cbb5404d144b0d19e3ba93583f4388301c3dada37cd25adf8"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "516bd2154eb843a8240e43d5b285229129853114ad7075a5e141e1c08e408c84"
+    },
+    "product-marketing": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/product-marketing/SKILL.md",
+      "computedHash": "3c8b5ada0a4296f0b44e9445f01fe851dffa05ae55d48246157a5f03c15998eb"
+    },
+    "qa-test-planner": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "skillPath": "skills/qa-test-planner/SKILL.md",
+      "computedHash": "8ee0d30acc14528eff0cf0b953f5adb6185a8ed65a72a489ae9297ddfee000b0"
+    }
+  }
+}
