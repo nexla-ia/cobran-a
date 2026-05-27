@@ -121,13 +121,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  // Listener Realtime: se o profile do usuário logado for deletado
-  // (admin removeu a conta), encerra a sessão imediatamente.
+  // Listener Realtime: observa mudanças no próprio profile.
+  // - UPDATE: atualiza state local (mantém role/instancia/api_key/etc em dia
+  //   sem precisar de F5 depois que o admin edita o próprio usuário)
+  // - DELETE: encerra a sessão imediatamente
   useEffect(() => {
     if (!isSupabaseConfigured || !session) return
     const userId = session.user.id
     const channel = supabase
       .channel(`own-profile-${userId}`)
+      .on(
+        // @ts-ignore — postgres_changes não tem types completos
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userId}`,
+        },
+        (payload: { new: Profile }) => {
+          setProfile(payload.new)
+        },
+      )
       .on(
         // @ts-ignore — postgres_changes não tem types completos
         'postgres_changes',
