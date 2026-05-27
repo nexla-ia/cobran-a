@@ -18,7 +18,6 @@ export type Profile = {
   role: Role
   evolution_instancia: string | null
   evolution_api_key: string | null
-  evolution_webhook_url: string | null
   created_at: string
 }
 

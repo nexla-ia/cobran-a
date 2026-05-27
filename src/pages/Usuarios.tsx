@@ -27,7 +27,6 @@ type Form = {
   role: Role
   evolution_instancia: string
   evolution_api_key: string
-  evolution_webhook_url: string
 }
 
 const empty: Form = {
@@ -37,7 +36,6 @@ const empty: Form = {
   role: 'user',
   evolution_instancia: '',
   evolution_api_key: '',
-  evolution_webhook_url: '',
 }
 
 export default function Usuarios() {
@@ -95,7 +93,6 @@ export default function Usuarios() {
       role: p.role,
       evolution_instancia: p.evolution_instancia ?? '',
       evolution_api_key: p.evolution_api_key ?? '',
-      evolution_webhook_url: p.evolution_webhook_url ?? '',
     })
     setOpen(true)
   }
@@ -124,7 +121,6 @@ export default function Usuarios() {
             role: form.role,
             evolution_instancia: form.evolution_instancia.trim() || null,
             evolution_api_key: form.evolution_api_key.trim() || null,
-            evolution_webhook_url: form.evolution_webhook_url.trim() || null,
           })
           .eq('id', editing.id)
         const timeout = new Promise<{ error: { message: string } }>((_, reject) =>
@@ -152,7 +148,6 @@ export default function Usuarios() {
         p_role: form.role,
         p_evolution_instancia: form.evolution_instancia.trim() || null,
         p_evolution_api_key: form.evolution_api_key.trim() || null,
-        p_evolution_webhook_url: form.evolution_webhook_url.trim() || null,
       })
       if (error) {
         toast.error(error.message)
@@ -385,15 +380,6 @@ export default function Usuarios() {
                 value={form.evolution_api_key}
                 onChange={(e) => setForm({ ...form, evolution_api_key: e.target.value })}
                 placeholder="UUID da instância"
-              />
-            </Field>
-            <Field label="Webhook URL" hint="Endpoint do n8n que recebe as cobranças deste usuário.">
-              <Input
-                type="url"
-                autoComplete="off"
-                value={form.evolution_webhook_url}
-                onChange={(e) => setForm({ ...form, evolution_webhook_url: e.target.value })}
-                placeholder="https://n8n.exemplo.com/webhook/..."
               />
             </Field>
           </div>

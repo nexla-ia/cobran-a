@@ -16,7 +16,8 @@ import {
 } from '@/lib/lookup'
 import { confirmDialog, toast } from '@/lib/dialogs'
 import { useRealtime } from '@/lib/realtime'
-import { useAuth } from '@/lib/auth'
+
+const WEBHOOK_URL = 'https://n8n.nexladesenvolvimento.com.br/webhook/cobrancanexla'
 
 type Form = {
   cliente_id: string
@@ -72,8 +73,6 @@ function cobrancaToForm(c: Cobranca): Form {
 }
 
 export default function Cobrancas() {
-  const { profile } = useAuth()
-  const webhookUrl = profile?.evolution_webhook_url ?? ''
   const [rows, setRows] = useState<Cobranca[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
@@ -232,10 +231,6 @@ export default function Cobrancas() {
 
   async function dispatchItems(ids: string[]) {
     if (ids.length === 0) return
-    if (!webhookUrl) {
-      toast.error('Webhook não configurado. Peça ao admin para preencher em /usuarios.')
-      return
-    }
     const ok = await confirmDialog({
       title: `Enviar ${ids.length} cobrança(s)?`,
       message: 'As informações do cliente e do título serão enviadas ao disparador (n8n).',
@@ -293,7 +288,7 @@ export default function Cobrancas() {
     try {
       // Primeiro tenta CORS normal — se o n8n estiver com "Allowed Origins" configurado,
       // conseguimos ler a resposta e confirmar status HTTP.
-      const r = await fetch(webhookUrl, {
+      const r = await fetch(WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: payload,
@@ -306,7 +301,7 @@ export default function Cobrancas() {
       // da resposta). A requisição CHEGA no n8n, mas não temos confirmação aqui.
       if (e instanceof TypeError) {
         try {
-          await fetch(webhookUrl, {
+          await fetch(WEBHOOK_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },

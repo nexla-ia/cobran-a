@@ -42,7 +42,6 @@ export type ProfileRow = {
   role: Role
   evolution_instancia: string | null
   evolution_api_key: string | null
-  evolution_webhook_url: string | null
   created_at: string
 }
 
@@ -84,7 +83,6 @@ export type Database = {
           p_role: Role
           p_evolution_instancia: string | null
           p_evolution_api_key: string | null
-          p_evolution_webhook_url: string | null
         }
         Returns: string
       }
