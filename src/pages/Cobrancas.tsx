@@ -16,6 +16,7 @@ import {
 } from '@/lib/lookup'
 import { confirmDialog, toast } from '@/lib/dialogs'
 import { useRealtime } from '@/lib/realtime'
+import { useAuth } from '@/lib/auth'
 
 const WEBHOOK_URL = 'https://n8n.nexladesenvolvimento.com.br/webhook/cobrancanexla'
 
@@ -73,6 +74,7 @@ function cobrancaToForm(c: Cobranca): Form {
 }
 
 export default function Cobrancas() {
+  const { profile } = useAuth()
   const [rows, setRows] = useState<Cobranca[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
@@ -281,6 +283,8 @@ export default function Cobrancas() {
         total_cobrancas: totalCobrancas,
         enviado_em: new Date().toISOString(),
         origem: 'cobranca-saas',
+        evolution_instancia: profile?.evolution_instancia ?? null,
+        evolution_api_key: profile?.evolution_api_key ?? null,
       },
       itens,
     })
