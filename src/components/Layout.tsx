@@ -166,12 +166,12 @@ export default function Layout() {
             onClick={() => setDrawerOpen(false)}
           />
           <aside
-            className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-surface border-r border-border flex flex-col shadow-2xl"
+            className="absolute right-0 top-0 bottom-0 w-72 max-w-[85vw] bg-surface border-l border-border flex flex-col shadow-2xl"
             style={{ animation: 'fade-in 220ms cubic-bezier(0.22,1,0.36,1) both' }}
           >
             <button
               onClick={() => setDrawerOpen(false)}
-              className="absolute top-3 right-3 size-8 grid place-items-center rounded-md text-fg-3 hover:bg-hover transition"
+              className="absolute top-3 left-3 size-8 grid place-items-center rounded-md text-fg-3 hover:bg-hover transition"
               aria-label="Fechar menu"
             >
               <X className="size-4" />
