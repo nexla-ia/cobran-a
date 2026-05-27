@@ -22,6 +22,7 @@ const WEBHOOK_URL = 'https://n8n.nexladesenvolvimento.com.br/webhook/cobrancanex
 
 type Form = {
   cliente_id: string
+  nome: string
   descricao: string
   valor: string
   vencimento: string
@@ -30,6 +31,7 @@ type Form = {
 
 const empty: Form = {
   cliente_id: '',
+  nome: '',
   descricao: '',
   valor: '',
   vencimento: '',
@@ -66,6 +68,7 @@ function isOverdue(c: Cobranca) {
 function cobrancaToForm(c: Cobranca): Form {
   return {
     cliente_id: c.cliente_id,
+    nome: c.nome ?? '',
     descricao: c.descricao,
     valor: formatBRLFromNumber(Number(c.valor)),
     vencimento: c.vencimento,
@@ -153,6 +156,7 @@ export default function Cobrancas() {
     const cents = parseBRLInput(form.valor).cents
     const payload = {
       cliente_id: form.cliente_id,
+      nome: form.nome.trim() || null,
       descricao: form.descricao,
       valor: cents / 100,
       vencimento: form.vencimento,
@@ -268,6 +272,7 @@ export default function Cobrancas() {
         const overdue = c.status !== 'pago' && c.status !== 'cancelado' && dias < 0
         return {
           cliente: cliente.nome,
+          nome: c.nome,
           descricao: c.descricao,
           valor: brl.format(Number(c.valor)),
           status: overdue ? 'atrasado' : c.status,
@@ -333,6 +338,7 @@ export default function Cobrancas() {
       filtered.map((r) => ({
         cliente: clienteMap.get(r.cliente_id)?.nome ?? r.cliente_id,
         documento: clienteMap.get(r.cliente_id)?.documento ?? '',
+        nome: r.nome ?? '',
         descricao: r.descricao,
         valor: r.valor,
         vencimento: r.vencimento,
@@ -356,6 +362,7 @@ export default function Cobrancas() {
     if (!q) return true
     const cli = clienteMap.get(r.cliente_id)
     return (
+      (r.nome?.toLowerCase().includes(q) ?? false) ||
       r.descricao.toLowerCase().includes(q) ||
       (cli?.nome?.toLowerCase().includes(q) ?? false) ||
       (cli?.documento?.toLowerCase().includes(q) ?? false)
@@ -528,6 +535,7 @@ export default function Cobrancas() {
                   />
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Cliente</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Nome</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Descrição</th>
                 <th className="px-4 py-2.5 text-right text-xs font-medium text-fg-3">Valor</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Vencimento</th>
@@ -561,6 +569,9 @@ export default function Cobrancas() {
                     <td className="px-4 py-3">
                       <div className="text-fg">{cli?.nome ?? '—'}</div>
                       <div className="text-xs text-fg-4 font-mono tabular">{cli?.documento ?? ''}</div>
+                    </td>
+                    <td className="px-4 py-3 text-fg">
+                      {r.nome ?? <span className="text-fg-4">—</span>}
                     </td>
                     <td className="px-4 py-3 text-fg-2">{r.descricao}</td>
                     <td className="px-4 py-3 text-right font-medium tabular text-fg">
@@ -640,13 +651,22 @@ export default function Cobrancas() {
             />
           </Field>
 
+          <Field label="Nome" hint="Título curto pra identificar e buscar depois.">
+            <Input
+              required
+              value={form.nome}
+              onChange={(e) => setForm({ ...form, nome: e.target.value })}
+              placeholder="Ex: Mensalidade Maio/2026"
+            />
+          </Field>
+
           <Field label="Descrição">
             <Textarea
               required
               rows={4}
               value={form.descricao}
               onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-              placeholder="Ex: Mensalidade Maio/2026 — referente ao plano premium…"
+              placeholder="Detalhes da cobrança, plano, observações…"
             />
           </Field>
 

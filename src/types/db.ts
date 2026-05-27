@@ -27,6 +27,7 @@ export type Cobranca = {
   id: string
   user_id: string
   cliente_id: string
+  nome: string | null
   descricao: string
   valor: number
   vencimento: string
