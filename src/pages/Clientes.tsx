@@ -15,6 +15,7 @@ import {
   formatPhoneByCountry,
   composePhone,
   parsePhone,
+  formatPhoneDisplay,
   COUNTRIES,
 } from '@/lib/lookup'
 
@@ -326,7 +327,7 @@ export default function Clientes() {
                   </td>
                   <td className="px-4 py-3 text-fg-3 text-xs">
                     <div>{r.email ?? <span className="text-fg-4">—</span>}</div>
-                    {r.telefone && <div className="text-fg-4">{r.telefone}</div>}
+                    {r.telefone && <div className="text-fg-4">{formatPhoneDisplay(r.telefone)}</div>}
                   </td>
                   <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                     <button

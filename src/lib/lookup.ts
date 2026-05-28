@@ -185,25 +185,49 @@ export function formatPhoneByCountry(dial: string, v: string) {
   return dial === '55' ? formatPhoneBR(v) : formatPhoneIntl(v)
 }
 
+// Salva como dígitos crus, ex: "556999145425". Mantém compatibilidade com
+// chamadores que ainda passam o número formatado (extrai só os dígitos).
 export function composePhone(dial: string, num: string) {
   const d = onlyDigits(dial)
-  const n = num.trim()
+  const n = onlyDigits(num)
   if (!n) return ''
-  if (!d) return n
-  return `+${d} ${n}`
+  return `${d}${n}`
+}
+
+// Detecta o DDI a partir dos dígitos guardados, casando o prefixo mais longo
+// possível com a lista de COUNTRIES. Fallback: '55'.
+function detectDial(digits: string): { dial: string; rest: string } {
+  const sorted = COUNTRIES.map((c) => c.dial).sort((a, b) => b.length - a.length)
+  for (const dial of sorted) {
+    if (digits.startsWith(dial)) return { dial, rest: digits.slice(dial.length) }
+  }
+  return { dial: '55', rest: digits.startsWith('55') ? digits.slice(2) : digits }
 }
 
 export function parsePhone(
   stored: string | null | undefined,
 ): { dial: string; numero: string } {
   if (!stored) return { dial: '55', numero: '' }
+  // Formato legado "+55 (69) 99914-5425"
   const match = stored.match(/^\+(\d{1,3})\s*(.+)$/)
   if (match) {
     const dial = match[1]
     return { dial, numero: formatPhoneByCountry(dial, match[2]) }
   }
-  // legado: "(XX) XXXXX-XXXX" sem DDI
-  return { dial: '55', numero: formatPhoneBR(stored) }
+  // Só dígitos: "556999145425" → detecta DDI, formata o resto
+  const digits = onlyDigits(stored)
+  if (digits) {
+    const { dial, rest } = detectDial(digits)
+    return { dial, numero: formatPhoneByCountry(dial, rest) }
+  }
+  return { dial: '55', numero: '' }
+}
+
+// Para exibição: "556999145425" → "+55 (69) 99914-5425"
+export function formatPhoneDisplay(stored: string | null | undefined): string {
+  if (!stored) return ''
+  const { dial, numero } = parsePhone(stored)
+  return numero ? `+${dial} ${numero}` : ''
 }
 
 export async function fetchCnpj(cnpj: string): Promise<CnpjData> {
