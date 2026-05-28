@@ -187,10 +187,15 @@ export function formatPhoneByCountry(dial: string, v: string) {
 
 // Salva como dígitos crus, ex: "556999145425". Mantém compatibilidade com
 // chamadores que ainda passam o número formatado (extrai só os dígitos).
+// Para BR: remove o 9 extra do celular (legado WhatsApp Business),
+// gerando 12 dígitos em vez de 13. Ex: "5569999145425" -> "556999145425".
 export function composePhone(dial: string, num: string) {
   const d = onlyDigits(dial)
-  const n = onlyDigits(num)
+  let n = onlyDigits(num)
   if (!n) return ''
+  if (d === '55' && n.length === 11 && n.charAt(2) === '9') {
+    n = n.slice(0, 2) + n.slice(3)
+  }
   return `${d}${n}`
 }
 
@@ -217,7 +222,12 @@ export function parsePhone(
   // Só dígitos: "556999145425" → detecta DDI, formata o resto
   const digits = onlyDigits(stored)
   if (digits) {
-    const { dial, rest } = detectDial(digits)
+    let { dial, rest } = detectDial(digits)
+    // BR: se vier 10 dígitos pós-DDI e o 3º (1º do número local) for 9,
+    // é celular salvo no formato legado (sem o 9 extra). Re-adiciona pro display.
+    if (dial === '55' && rest.length === 10 && rest.charAt(2) === '9') {
+      rest = rest.slice(0, 2) + '9' + rest.slice(2)
+    }
     return { dial, numero: formatPhoneByCountry(dial, rest) }
   }
   return { dial: '55', numero: '' }
