@@ -23,23 +23,31 @@ export type Cliente = {
 
 export type EnvioStatus = 'enviado' | 'entregue' | 'lido' | 'falha'
 
-export type Envio = {
+export type Mensagem = {
   id: string
   user_id: string
-  cobranca_id: string | null
   cliente_id: string | null
-  message_id: string | null
   instancia: string | null
   chave_api: string | null
+  message_id: string | null
   telefone: string | null
   conteudo: string | null
+  enviado_em: string
+}
+
+export type MensagemStatus = {
+  id: string
+  mensagem_id: string
+  user_id: string
   status: EnvioStatus
   erro: string | null
-  enviado_em: string
   entregue_em: string | null
   lido_em: string | null
   falhou_em: string | null
-  created_at: string
+  atualizado_em: string
+  instancia: string | null
+  chave_api: string | null
+  message_id: string | null
 }
 
 export type CobrancaStatus = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
@@ -89,11 +97,17 @@ export type Database = {
           Omit<Cobranca, 'id' | 'user_id' | 'created_at'>,
         Partial<Omit<Cobranca, 'id' | 'created_at'>>
       >
-      envios: TableShape<
-        Envio,
-        Partial<Pick<Envio, 'id' | 'user_id' | 'created_at' | 'enviado_em'>> &
-          Omit<Envio, 'id' | 'user_id' | 'created_at' | 'enviado_em'>,
-        Partial<Omit<Envio, 'id' | 'created_at'>>
+      mensagens: TableShape<
+        Mensagem,
+        Partial<Pick<Mensagem, 'id' | 'user_id' | 'enviado_em'>> &
+          Omit<Mensagem, 'id' | 'user_id' | 'enviado_em'>,
+        Partial<Omit<Mensagem, 'id'>>
+      >
+      mensagem_status: TableShape<
+        MensagemStatus,
+        Partial<Pick<MensagemStatus, 'id' | 'user_id' | 'atualizado_em'>> &
+          Omit<MensagemStatus, 'id' | 'user_id' | 'atualizado_em'>,
+        Partial<Omit<MensagemStatus, 'id' | 'mensagem_id'>>
       >
       profiles: TableShape<
         ProfileRow,

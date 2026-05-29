@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Send, Check, CheckCheck, AlertCircle, Search, X, RefreshCw, Loader2 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import type { Cliente, Cobranca, Envio, EnvioStatus } from '@/types/db'
+import type { Cliente, EnvioStatus, Mensagem, MensagemStatus } from '@/types/db'
 import { Badge, Button, EmptyState, PageHeader } from '@/components/ui'
 import { useRealtime } from '@/lib/realtime'
 import { useAuth } from '@/lib/auth'
@@ -9,7 +9,7 @@ import { toast } from '@/lib/dialogs'
 import { formatPhoneDisplay, isoToBR } from '@/lib/lookup'
 
 const VERIFY_WEBHOOK_URL =
-  'https://n8n.nexladesenvolvimento.com.br/webhook/verificar-envios'
+  'https://n8n.nexladesenvolvimento.com.br/webhook/atualizatelamensagens'
 
 const statusLabel: Record<EnvioStatus, string> = {
   enviado: 'Enviado',
@@ -41,40 +41,159 @@ const StatusIcon = ({ status }: { status: EnvioStatus }) => {
 function formatDateTime(iso: string | null) {
   if (!iso) return '—'
   const d = new Date(iso)
-  return `${isoToBR(d.toISOString().slice(0, 10))} ${d
-    .toTimeString()
-    .slice(0, 5)}`
+  return `${isoToBR(d.toISOString().slice(0, 10))} ${d.toTimeString().slice(0, 5)}`
+}
+
+type Row = Mensagem & {
+  status: EnvioStatus
+  erro: string | null
+  entregue_em: string | null
+  lido_em: string | null
+  falhou_em: string | null
+  atualizado_em: string | null
 }
 
 export default function Envios() {
   const { session, profile } = useAuth()
-  const [rows, setRows] = useState<Envio[]>([])
+  const [mensagens, setMensagens] = useState<Mensagem[]>([])
+  const [statusList, setStatusList] = useState<MensagemStatus[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
-  const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
   const [loading, setLoading] = useState(true)
   const [verifying, setVerifying] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'todos' | EnvioStatus>('todos')
   const [query, setQuery] = useState('')
 
+  async function load() {
+    setLoading(true)
+    if (!isSupabaseConfigured) {
+      setMensagens([])
+      setStatusList([])
+      setLoading(false)
+      return
+    }
+    try {
+      const [m, s, c] = await Promise.all([
+        supabase
+          .from('mensagens')
+          .select('*')
+          .order('enviado_em', { ascending: false })
+          .limit(500),
+        supabase.from('mensagem_status').select('*'),
+        supabase.from('clientes').select('*'),
+      ])
+      if (m.error) console.warn('[envios] mensagens:', m.error.message)
+      if (s.error) console.warn('[envios] status:', s.error.message)
+      setMensagens(m.data ?? [])
+      setStatusList(s.data ?? [])
+      setClientes(c.data ?? [])
+    } catch (e) {
+      console.error('[envios] load falhou:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  useRealtime(['mensagens', 'mensagem_status'], load)
+
+  const statusByMensagem = useMemo(() => {
+    const m = new Map<string, MensagemStatus>()
+    statusList.forEach((s) => m.set(s.mensagem_id, s))
+    return m
+  }, [statusList])
+
+  const clienteMap = useMemo(() => {
+    const m = new Map<string, Cliente>()
+    clientes.forEach((x) => m.set(x.id, x))
+    return m
+  }, [clientes])
+
+  // Index de clientes pelo telefone (com/sem 9 BR) pra resolver linhas sem cliente_id
+  const clienteByPhone = useMemo(() => {
+    const m = new Map<string, Cliente>()
+    for (const c of clientes) {
+      if (!c.telefone) continue
+      const digits = c.telefone.replace(/\D/g, '')
+      if (!digits) continue
+      m.set(digits, c)
+      if (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') {
+        m.set(digits.slice(0, 4) + digits.slice(5), c)
+      } else if (digits.length === 12 && digits.startsWith('55')) {
+        m.set('55' + digits.slice(2, 4) + '9' + digits.slice(4), c)
+      }
+    }
+    return m
+  }, [clientes])
+
+  function resolveCliente(m: Mensagem): Cliente | null {
+    if (m.cliente_id) {
+      const c = clienteMap.get(m.cliente_id)
+      if (c) return c
+    }
+    if (m.telefone) {
+      return clienteByPhone.get(m.telefone.replace(/\D/g, '')) ?? null
+    }
+    return null
+  }
+
+  const rows: Row[] = mensagens.map((m) => {
+    const s = statusByMensagem.get(m.id)
+    return {
+      ...m,
+      status: s?.status ?? 'enviado',
+      erro: s?.erro ?? null,
+      entregue_em: s?.entregue_em ?? null,
+      lido_em: s?.lido_em ?? null,
+      falhou_em: s?.falhou_em ?? null,
+      atualizado_em: s?.atualizado_em ?? null,
+    }
+  })
+
+  const q = query.trim().toLowerCase()
+  const filtered = rows.filter((r) => {
+    if (statusFilter !== 'todos' && r.status !== statusFilter) return false
+    if (!q) return true
+    const cli = resolveCliente(r)
+    return (
+      (cli?.nome?.toLowerCase().includes(q) ?? false) ||
+      (cli?.documento?.toLowerCase().includes(q) ?? false) ||
+      (r.telefone?.toLowerCase().includes(q) ?? false) ||
+      (r.instancia?.toLowerCase().includes(q) ?? false) ||
+      (r.conteudo?.toLowerCase().includes(q) ?? false) ||
+      (r.message_id?.toLowerCase().includes(q) ?? false)
+    )
+  })
+
+  const counts = rows.reduce(
+    (acc, r) => {
+      acc[r.status]++
+      return acc
+    },
+    { enviado: 0, entregue: 0, lido: 0, falha: 0 } as Record<EnvioStatus, number>,
+  )
+
   async function verifyNow() {
     if (!session?.user?.id) return
     setVerifying(true)
     try {
+      const body = JSON.stringify({
+        user_id: session.user.id,
+        instancia: profile?.evolution_instancia ?? null,
+        api_key: profile?.evolution_api_key ?? null,
+        hours: 24,
+      })
       const r = await fetch(VERIFY_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: session.user.id,
-          instancia: profile?.evolution_instancia ?? null,
-          api_key: profile?.evolution_api_key ?? null,
-          hours: 24,
-        }),
+        body,
       })
       if (!r.ok) throw new Error(`Webhook respondeu ${r.status}`)
       toast.success('Verificação enviada. Atualiza em alguns segundos.')
     } catch (e) {
       if (e instanceof TypeError) {
-        // CORS bloqueado — reenvia em no-cors (a request CHEGA, só não lemos resposta)
         try {
           await fetch(VERIFY_WEBHOOK_URL, {
             method: 'POST',
@@ -100,113 +219,6 @@ export default function Envios() {
       setVerifying(false)
     }
   }
-
-  async function load() {
-    setLoading(true)
-    if (!isSupabaseConfigured) {
-      setRows([])
-      setLoading(false)
-      return
-    }
-    try {
-      const [e, c, cl] = await Promise.all([
-        supabase
-          .from('envios')
-          .select('*')
-          .order('enviado_em', { ascending: false })
-          .limit(500),
-        supabase.from('clientes').select('*'),
-        supabase.from('cobrancas').select('*'),
-      ])
-      if (e.error) console.warn('[envios] select:', e.error.message)
-      setRows(e.data ?? [])
-      setClientes(c.data ?? [])
-      setCobrancas(cl.data ?? [])
-    } catch (e) {
-      console.error('[envios] load falhou:', e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    load()
-  }, [])
-
-  useRealtime(['envios'], load)
-
-  const clienteMap = useMemo(() => {
-    const m = new Map<string, Cliente>()
-    clientes.forEach((x) => m.set(x.id, x))
-    return m
-  }, [clientes])
-
-  // Lookup auxiliar: telefone (só dígitos) → cliente.
-  // Indexa todos os clientes pelo telefone normalizado pra resolver linhas
-  // de envios em que o n8n só populou 'telefone' (sem cliente_id).
-  const clienteByPhone = useMemo(() => {
-    const m = new Map<string, Cliente>()
-    for (const c of clientes) {
-      if (!c.telefone) continue
-      const digits = c.telefone.replace(/\D/g, '')
-      if (!digits) continue
-      m.set(digits, c)
-      // Variante BR sem o 9 extra (caso o telefone esteja salvo com 9 e o envio veio sem, ou vice-versa)
-      if (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') {
-        m.set(digits.slice(0, 4) + digits.slice(5), c)
-      } else if (
-        digits.length === 12 &&
-        digits.startsWith('55') &&
-        !m.has('55' + digits.slice(2, 4) + '9' + digits.slice(4))
-      ) {
-        m.set('55' + digits.slice(2, 4) + '9' + digits.slice(4), c)
-      }
-    }
-    return m
-  }, [clientes])
-
-  function resolveCliente(r: Envio): Cliente | null {
-    if (r.cliente_id) {
-      const c = clienteMap.get(r.cliente_id)
-      if (c) return c
-    }
-    if (r.telefone) {
-      const digits = r.telefone.replace(/\D/g, '')
-      return clienteByPhone.get(digits) ?? null
-    }
-    return null
-  }
-
-  const cobrancaMap = useMemo(() => {
-    const m = new Map<string, Cobranca>()
-    cobrancas.forEach((x) => m.set(x.id, x))
-    return m
-  }, [cobrancas])
-
-  const q = query.trim().toLowerCase()
-  const filtered = rows.filter((r) => {
-    if (statusFilter !== 'todos' && r.status !== statusFilter) return false
-    if (!q) return true
-    const cli = resolveCliente(r)
-    const cob = r.cobranca_id ? cobrancaMap.get(r.cobranca_id) : null
-    return (
-      (cli?.nome?.toLowerCase().includes(q) ?? false) ||
-      (cli?.documento?.toLowerCase().includes(q) ?? false) ||
-      (r.telefone?.toLowerCase().includes(q) ?? false) ||
-      (r.instancia?.toLowerCase().includes(q) ?? false) ||
-      (cob?.nome?.toLowerCase().includes(q) ?? false) ||
-      (cob?.descricao.toLowerCase().includes(q) ?? false) ||
-      (r.message_id?.toLowerCase().includes(q) ?? false)
-    )
-  })
-
-  const counts = rows.reduce(
-    (acc, r) => {
-      acc[r.status]++
-      return acc
-    },
-    { enviado: 0, entregue: 0, lido: 0, falha: 0 } as Record<EnvioStatus, number>,
-  )
 
   return (
     <div>
@@ -261,7 +273,7 @@ export default function Envios() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar cliente, telefone, instância, message id…"
+              placeholder="Buscar cliente, telefone, mensagem…"
               className="h-8 w-72 max-w-full pl-8 pr-7 text-xs bg-surface border border-border rounded-md text-fg placeholder:text-fg-4 outline-none focus:border-fg-3 transition"
             />
             {query && (
@@ -302,9 +314,8 @@ export default function Envios() {
             <thead>
               <tr className="border-b border-border bg-bg">
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Cliente</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Cobrança</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Telefone</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Instância</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Mensagem</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Status</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Enviado</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Lido</th>
@@ -313,41 +324,54 @@ export default function Envios() {
             <tbody className="stagger">
               {filtered.map((r) => {
                 const cli = resolveCliente(r)
-                const cob = r.cobranca_id ? cobrancaMap.get(r.cobranca_id) : null
                 return (
                   <tr
                     key={r.id}
                     className="row-hover border-b border-border-2 last:border-b-0 hover:bg-hover"
-                    title={r.erro ?? r.conteudo ?? ''}
                   >
-                    <td className="px-4 py-3">
-                      <div className="text-fg">{cli?.nome ?? <span className="text-fg-4">—</span>}</div>
-                      <div className="text-xs text-fg-4 font-mono tabular">{cli?.documento ?? ''}</div>
-                    </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       <div className="text-fg">
-                        {cob?.nome ?? cob?.descricao?.slice(0, 40) ?? <span className="text-fg-4">—</span>}
+                        {cli?.nome ?? <span className="text-fg-4">—</span>}
+                      </div>
+                      <div className="text-xs text-fg-4 font-mono tabular">
+                        {cli?.documento ?? ''}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-fg-3 tabular text-xs">
-                      {r.telefone ? formatPhoneDisplay(r.telefone) : <span className="text-fg-4">—</span>}
+                    <td className="px-4 py-3 align-top text-fg-3 tabular text-xs">
+                      {r.telefone ? (
+                        formatPhoneDisplay(r.telefone)
+                      ) : (
+                        <span className="text-fg-4">—</span>
+                      )}
                     </td>
-                    <td className="px-4 py-3 text-fg-3 text-xs">
-                      {r.instancia ?? <span className="text-fg-4">—</span>}
+                    <td className="px-4 py-3 align-top text-fg-2 text-xs max-w-[420px]">
+                      <div
+                        className="whitespace-pre-wrap break-words line-clamp-3"
+                        title={r.conteudo ?? ''}
+                      >
+                        {r.conteudo ?? <span className="text-fg-4">—</span>}
+                      </div>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       <Badge tone={statusTone[r.status]}>
                         <StatusIcon status={r.status} />
                         {statusLabel[r.status]}
                       </Badge>
                       {r.status === 'falha' && r.erro && (
-                        <div className="text-[10px] text-danger mt-1 max-w-[200px] truncate" title={r.erro}>
+                        <div
+                          className="text-[10px] text-danger mt-1 max-w-[200px] truncate"
+                          title={r.erro}
+                        >
                           {r.erro}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-fg-3 tabular text-xs">{formatDateTime(r.enviado_em)}</td>
-                    <td className="px-4 py-3 text-fg-3 tabular text-xs">{formatDateTime(r.lido_em)}</td>
+                    <td className="px-4 py-3 align-top text-fg-3 tabular text-xs">
+                      {formatDateTime(r.enviado_em)}
+                    </td>
+                    <td className="px-4 py-3 align-top text-fg-3 tabular text-xs">
+                      {formatDateTime(r.lido_em)}
+                    </td>
                   </tr>
                 )
               })}
@@ -368,13 +392,14 @@ export default function Envios() {
           Como o histórico é alimentado
         </div>
         <p>
-          O n8n insere uma linha em <code className="font-mono">envios</code> com{' '}
-          <code className="font-mono">status='enviado'</code> ao chamar a Evolution. O webhook{' '}
-          <code className="font-mono">messages.update</code> da Evolution dispara um fluxo que faz
-          UPDATE casando por <code className="font-mono">(instancia, message_id)</code>: ack →{' '}
-          <code className="font-mono">entregue</code>, read → <code className="font-mono">lido</code>,
-          erro → <code className="font-mono">falha</code> com mensagem em{' '}
-          <code className="font-mono">erro</code>.
+          O n8n insere uma linha em <code className="font-mono">mensagens</code> ao chamar a
+          Evolution; o trigger cria <code className="font-mono">mensagem_status</code> com{' '}
+          <code className="font-mono">status='enviado'</code>. Depois, o cron/botão{' '}
+          <em>Verificar status</em> consulta a Evolution e atualiza{' '}
+          <code className="font-mono">mensagem_status</code>: ack →{' '}
+          <code className="font-mono">entregue</code>, read →{' '}
+          <code className="font-mono">lido</code>, erro →{' '}
+          <code className="font-mono">falha</code>.
         </p>
       </div>
     </div>
