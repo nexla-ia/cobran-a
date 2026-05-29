@@ -77,7 +77,7 @@ function cobrancaToForm(c: Cobranca): Form {
 }
 
 export default function Cobrancas() {
-  const { profile } = useAuth()
+  const { session, profile } = useAuth()
   const [rows, setRows] = useState<Cobranca[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
@@ -289,6 +289,7 @@ export default function Cobrancas() {
         total_cobrancas: totalCobrancas,
         enviado_em: new Date().toISOString(),
         origem: 'cobranca-saas',
+        user_id: session?.user?.id ?? null,
         evolution_instancia: profile?.evolution_instancia ?? null,
         evolution_api_key: profile?.evolution_api_key ?? null,
       },
