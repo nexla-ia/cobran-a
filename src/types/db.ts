@@ -30,6 +30,7 @@ export type Envio = {
   cliente_id: string | null
   message_id: string | null
   instancia: string | null
+  chave_api: string | null
   telefone: string | null
   conteudo: string | null
   status: EnvioStatus
