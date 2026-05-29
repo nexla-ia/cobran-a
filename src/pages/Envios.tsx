@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Send, Check, CheckCheck, AlertCircle, Search, X, RefreshCw, Loader2 } from 'lucide-react'
+import { Check, CheckCheck, AlertCircle, Search, X, RefreshCw, Loader2 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import type { Cliente, EnvioStatus, Mensagem, MensagemStatus } from '@/types/db'
 import { Badge, Button, EmptyState, PageHeader } from '@/components/ui'
@@ -62,6 +62,40 @@ export default function Envios() {
   const [verifying, setVerifying] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'todos' | EnvioStatus>('todos')
   const [query, setQuery] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [timeFrom, setTimeFrom] = useState('')
+  const [timeTo, setTimeTo] = useState('')
+
+  function setPreset(days: number | 'today' | 'all') {
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const iso = (d: Date) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+    if (days === 'all') {
+      setDateFrom('')
+      setDateTo('')
+    } else if (days === 'today') {
+      setDateFrom(iso(now))
+      setDateTo(iso(now))
+    } else {
+      const from = new Date(now)
+      from.setDate(from.getDate() - days + 1)
+      setDateFrom(iso(from))
+      setDateTo(iso(now))
+    }
+    setTimeFrom('')
+    setTimeTo('')
+  }
+
+  function clearFilters() {
+    setStatusFilter('todos')
+    setQuery('')
+    setDateFrom('')
+    setDateTo('')
+    setTimeFrom('')
+    setTimeTo('')
+  }
 
   async function load() {
     setLoading(true)
@@ -153,8 +187,24 @@ export default function Envios() {
   })
 
   const q = query.trim().toLowerCase()
+
+  // Constrói limites em ms a partir de date + time
+  function boundary(dateStr: string, timeStr: string, end: boolean): number | null {
+    if (!dateStr) return null
+    const fallback = end ? '23:59' : '00:00'
+    const t = timeStr || fallback
+    const iso = `${dateStr}T${t}:${end && !timeStr ? '59.999' : '00.000'}`
+    const ms = new Date(iso).getTime()
+    return isNaN(ms) ? null : ms
+  }
+  const fromMs = boundary(dateFrom, timeFrom, false)
+  const toMs = boundary(dateTo, timeTo, true)
+
   const filtered = rows.filter((r) => {
     if (statusFilter !== 'todos' && r.status !== statusFilter) return false
+    const t = new Date(r.enviado_em).getTime()
+    if (fromMs !== null && t < fromMs) return false
+    if (toMs !== null && t > toMs) return false
     if (!q) return true
     const cli = resolveCliente(r)
     return (
@@ -166,6 +216,9 @@ export default function Envios() {
       (r.message_id?.toLowerCase().includes(q) ?? false)
     )
   })
+
+  const hasFilters =
+    statusFilter !== 'todos' || query !== '' || dateFrom || dateTo || timeFrom || timeTo
 
   const counts = rows.reduce(
     (acc, r) => {
@@ -252,21 +305,22 @@ export default function Envios() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div className="inline-flex p-0.5 border border-border rounded-md bg-surface">
-          {(['todos', 'enviado', 'entregue', 'lido', 'falha'] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => setStatusFilter(k)}
-              className={`tab-pill px-3 h-7 text-xs font-medium rounded ${
-                statusFilter === k ? 'bg-fg text-surface' : 'text-fg-3 hover:text-fg'
-              }`}
-            >
-              {k === 'todos' ? 'Todos' : statusLabel[k]}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
+      <div className="mb-4 space-y-3">
+        {/* Linha 1: pills de status + busca */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="inline-flex p-0.5 border border-border rounded-md bg-surface">
+            {(['todos', 'enviado', 'entregue', 'lido', 'falha'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setStatusFilter(k)}
+                className={`tab-pill px-3 h-7 text-xs font-medium rounded ${
+                  statusFilter === k ? 'bg-fg text-surface' : 'text-fg-3 hover:text-fg'
+                }`}
+              >
+                {k === 'todos' ? 'Todos' : statusLabel[k]}
+              </button>
+            ))}
+          </div>
           <div className="relative">
             <Search className="size-3.5 text-fg-4 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
@@ -284,6 +338,70 @@ export default function Envios() {
                 type="button"
               >
                 <X className="size-3" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Linha 2: data/hora + presets + contador */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-fg-3">
+              <span>De</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="h-8 px-2 text-xs bg-surface border border-border rounded-md text-fg outline-none focus:border-fg-3 transition tabular"
+              />
+              <input
+                type="time"
+                value={timeFrom}
+                onChange={(e) => setTimeFrom(e.target.value)}
+                className="h-8 px-2 text-xs bg-surface border border-border rounded-md text-fg outline-none focus:border-fg-3 transition tabular"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-fg-3">
+              <span>Até</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="h-8 px-2 text-xs bg-surface border border-border rounded-md text-fg outline-none focus:border-fg-3 transition tabular"
+              />
+              <input
+                type="time"
+                value={timeTo}
+                onChange={(e) => setTimeTo(e.target.value)}
+                className="h-8 px-2 text-xs bg-surface border border-border rounded-md text-fg outline-none focus:border-fg-3 transition tabular"
+              />
+            </div>
+            <div className="inline-flex p-0.5 border border-border rounded-md bg-surface">
+              {(
+                [
+                  { k: 'today', label: 'Hoje' },
+                  { k: 7, label: '7d' },
+                  { k: 30, label: '30d' },
+                  { k: 'all', label: 'Tudo' },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={String(p.k)}
+                  type="button"
+                  onClick={() => setPreset(p.k as 'today' | 'all' | 7 | 30)}
+                  className="tab-pill px-2.5 h-6 text-[11px] font-medium rounded text-fg-3 hover:text-fg"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1 h-7 px-2 text-[11px] text-fg-3 hover:text-fg border border-border rounded-md bg-surface"
+              >
+                <X className="size-3" /> Limpar
               </button>
             )}
           </div>
@@ -386,22 +504,6 @@ export default function Envios() {
         </p>
       )}
 
-      <div className="mt-8 p-4 rounded-lg border border-border bg-surface text-xs text-fg-3 space-y-1">
-        <div className="flex items-center gap-1.5 text-fg-2 font-medium">
-          <Send className="size-3.5" />
-          Como o histórico é alimentado
-        </div>
-        <p>
-          O n8n insere uma linha em <code className="font-mono">mensagens</code> ao chamar a
-          Evolution; o trigger cria <code className="font-mono">mensagem_status</code> com{' '}
-          <code className="font-mono">status='enviado'</code>. Depois, o cron/botão{' '}
-          <em>Verificar status</em> consulta a Evolution e atualiza{' '}
-          <code className="font-mono">mensagem_status</code>: ack →{' '}
-          <code className="font-mono">entregue</code>, read →{' '}
-          <code className="font-mono">lido</code>, erro →{' '}
-          <code className="font-mono">falha</code>.
-        </p>
-      </div>
     </div>
   )
 }
