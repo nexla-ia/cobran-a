@@ -21,6 +21,26 @@ export type Cliente = {
   created_at: string
 }
 
+export type EnvioStatus = 'enviado' | 'entregue' | 'lido' | 'falha'
+
+export type Envio = {
+  id: string
+  user_id: string
+  cobranca_id: string | null
+  cliente_id: string | null
+  message_id: string | null
+  instancia: string | null
+  telefone: string | null
+  conteudo: string | null
+  status: EnvioStatus
+  erro: string | null
+  enviado_em: string
+  entregue_em: string | null
+  lido_em: string | null
+  falhou_em: string | null
+  created_at: string
+}
+
 export type CobrancaStatus = 'pendente' | 'pago' | 'atrasado' | 'cancelado'
 
 export type Cobranca = {
@@ -67,6 +87,12 @@ export type Database = {
         Partial<Pick<Cobranca, 'id' | 'user_id' | 'created_at'>> &
           Omit<Cobranca, 'id' | 'user_id' | 'created_at'>,
         Partial<Omit<Cobranca, 'id' | 'created_at'>>
+      >
+      envios: TableShape<
+        Envio,
+        Partial<Pick<Envio, 'id' | 'user_id' | 'created_at' | 'enviado_em'>> &
+          Omit<Envio, 'id' | 'user_id' | 'created_at' | 'enviado_em'>,
+        Partial<Omit<Envio, 'id' | 'created_at'>>
       >
       profiles: TableShape<
         ProfileRow,

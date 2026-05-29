@@ -5,6 +5,7 @@ import DialogRoot from './components/DialogRoot'
 import Dashboard from './pages/Dashboard'
 import Clientes from './pages/Clientes'
 import Cobrancas from './pages/Cobrancas'
+import Envios from './pages/Envios'
 import Login from './pages/Login'
 import Usuarios from './pages/Usuarios'
 import { useAuth } from './lib/auth'
@@ -41,6 +42,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="/clientes" element={<Clientes />} />
           <Route path="/cobrancas" element={<Cobrancas />} />
+          <Route path="/envios" element={<Envios />} />
           <Route path="/usuarios" element={<Usuarios />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
