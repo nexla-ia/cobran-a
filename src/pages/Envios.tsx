@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Send, Check, CheckCheck, AlertCircle, Search, X } from 'lucide-react'
+import { Send, Check, CheckCheck, AlertCircle, Search, X, RefreshCw, Loader2 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import type { Cliente, Cobranca, Envio, EnvioStatus } from '@/types/db'
-import { Badge, EmptyState, PageHeader } from '@/components/ui'
+import { Badge, Button, EmptyState, PageHeader } from '@/components/ui'
 import { useRealtime } from '@/lib/realtime'
+import { useAuth } from '@/lib/auth'
+import { toast } from '@/lib/dialogs'
 import { formatPhoneDisplay, isoToBR } from '@/lib/lookup'
+
+const VERIFY_WEBHOOK_URL =
+  'https://n8n.nexladesenvolvimento.com.br/webhook/verificar-envios'
 
 const statusLabel: Record<EnvioStatus, string> = {
   enviado: 'Enviado',
@@ -42,12 +47,59 @@ function formatDateTime(iso: string | null) {
 }
 
 export default function Envios() {
+  const { session, profile } = useAuth()
   const [rows, setRows] = useState<Envio[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [cobrancas, setCobrancas] = useState<Cobranca[]>([])
   const [loading, setLoading] = useState(true)
+  const [verifying, setVerifying] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'todos' | EnvioStatus>('todos')
   const [query, setQuery] = useState('')
+
+  async function verifyNow() {
+    if (!session?.user?.id) return
+    setVerifying(true)
+    try {
+      const r = await fetch(VERIFY_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: session.user.id,
+          instancia: profile?.evolution_instancia ?? null,
+          api_key: profile?.evolution_api_key ?? null,
+          hours: 24,
+        }),
+      })
+      if (!r.ok) throw new Error(`Webhook respondeu ${r.status}`)
+      toast.success('Verificação enviada. Atualiza em alguns segundos.')
+    } catch (e) {
+      if (e instanceof TypeError) {
+        // CORS bloqueado — reenvia em no-cors (a request CHEGA, só não lemos resposta)
+        try {
+          await fetch(VERIFY_WEBHOOK_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: session.user.id,
+              instancia: profile?.evolution_instancia ?? null,
+              api_key: profile?.evolution_api_key ?? null,
+              hours: 24,
+            }),
+          })
+          toast.success('Verificação disparada. Confirme no painel do n8n.', {
+            duration: 5000,
+          })
+        } catch (e2) {
+          toast.error(`Falha: ${(e2 as Error).message}`)
+        }
+      } else {
+        toast.error(`Falha: ${(e as Error).message}`)
+      }
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   async function load() {
     setLoading(true)
@@ -125,6 +177,16 @@ export default function Envios() {
       <PageHeader
         title="Envios"
         subtitle="Histórico de mensagens disparadas pelo n8n via Evolution."
+        actions={
+          <Button variant="secondary" onClick={verifyNow} disabled={verifying || !session}>
+            {verifying ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            Verificar status
+          </Button>
+        }
       />
 
       <div className="stagger grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
