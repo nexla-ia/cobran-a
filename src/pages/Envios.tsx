@@ -141,6 +141,42 @@ export default function Envios() {
     return m
   }, [clientes])
 
+  // Lookup auxiliar: telefone (só dígitos) → cliente.
+  // Indexa todos os clientes pelo telefone normalizado pra resolver linhas
+  // de envios em que o n8n só populou 'telefone' (sem cliente_id).
+  const clienteByPhone = useMemo(() => {
+    const m = new Map<string, Cliente>()
+    for (const c of clientes) {
+      if (!c.telefone) continue
+      const digits = c.telefone.replace(/\D/g, '')
+      if (!digits) continue
+      m.set(digits, c)
+      // Variante BR sem o 9 extra (caso o telefone esteja salvo com 9 e o envio veio sem, ou vice-versa)
+      if (digits.length === 13 && digits.startsWith('55') && digits[4] === '9') {
+        m.set(digits.slice(0, 4) + digits.slice(5), c)
+      } else if (
+        digits.length === 12 &&
+        digits.startsWith('55') &&
+        !m.has('55' + digits.slice(2, 4) + '9' + digits.slice(4))
+      ) {
+        m.set('55' + digits.slice(2, 4) + '9' + digits.slice(4), c)
+      }
+    }
+    return m
+  }, [clientes])
+
+  function resolveCliente(r: Envio): Cliente | null {
+    if (r.cliente_id) {
+      const c = clienteMap.get(r.cliente_id)
+      if (c) return c
+    }
+    if (r.telefone) {
+      const digits = r.telefone.replace(/\D/g, '')
+      return clienteByPhone.get(digits) ?? null
+    }
+    return null
+  }
+
   const cobrancaMap = useMemo(() => {
     const m = new Map<string, Cobranca>()
     cobrancas.forEach((x) => m.set(x.id, x))
@@ -151,7 +187,7 @@ export default function Envios() {
   const filtered = rows.filter((r) => {
     if (statusFilter !== 'todos' && r.status !== statusFilter) return false
     if (!q) return true
-    const cli = r.cliente_id ? clienteMap.get(r.cliente_id) : null
+    const cli = resolveCliente(r)
     const cob = r.cobranca_id ? cobrancaMap.get(r.cobranca_id) : null
     return (
       (cli?.nome?.toLowerCase().includes(q) ?? false) ||
@@ -276,7 +312,7 @@ export default function Envios() {
             </thead>
             <tbody className="stagger">
               {filtered.map((r) => {
-                const cli = r.cliente_id ? clienteMap.get(r.cliente_id) : null
+                const cli = resolveCliente(r)
                 const cob = r.cobranca_id ? cobrancaMap.get(r.cobranca_id) : null
                 return (
                   <tr
