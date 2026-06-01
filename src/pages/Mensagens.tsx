@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, MessageSquare, Loader2 } from 'lucide-react'
+import { Search, X, MessageSquare, Loader2, ExternalLink } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import type { Cliente, ConversaMsg } from '@/types/db'
@@ -519,6 +519,21 @@ export default function Mensagens() {
                   )}
                   <div ref={chatEndRef} />
                 </div>
+                {selectedCliente.telefone && (
+                  <div className="px-4 py-3 border-t border-border bg-surface flex items-center justify-end">
+                    <a
+                      href={`https://wa.me/${selectedCliente.telefone.replace(/\D/g, '')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 h-9 px-3.5 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition"
+                      title="Abrir conversa no WhatsApp"
+                    >
+                      <MessageSquare className="size-4" />
+                      Abrir no WhatsApp
+                      <ExternalLink className="size-3.5" />
+                    </a>
+                  </div>
+                )}
               </>
             )}
           </div>
