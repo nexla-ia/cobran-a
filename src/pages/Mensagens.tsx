@@ -155,33 +155,34 @@ export default function Mensagens() {
         // Estripa @s.whatsapp.net caso o n8n tenha gravado com sufixo
         const telefone = rawNumero ? rawNumero.split('@')[0] : null
 
-        // Determina direção:
-        // 1) coluna 'type' tem prioridade — n8n usa type pra dizer quem mandou
-        //    ('atendente'/'sistema'/'bot'/'ia' = out; nome do cliente,
-        //    'Cliente', 'in'/'recebida' = in).
-        // 2) se type for vazio, usa a coluna 'direcao' (que pode ter default 'out')
-        // 3) fallback final: 'in' (assume entrada quando ambíguo)
+        // Determina direção (regra: só vira 'out' quando algum sinal explícito
+        // disser que é envio do atendente/bot; tudo o mais cai em 'in'):
         const typeLower = (r.type as string | undefined)?.toLowerCase().trim() ?? ''
+        const nomeLower = (r.nome as string | undefined)?.toLowerCase().trim() ?? ''
         const rawDirecao = (r.direcao as string | undefined)?.toLowerCase()
-        const outgoingTypes = new Set([
+        const outgoing = new Set([
           'atendente',
-          'out',
-          'enviada',
           'sistema',
           'bot',
           'ia',
           'ai',
           'nexla',
+          'out',
+          'enviada',
         ])
-        const incomingTypes = new Set(['cliente', 'in', 'recebida'])
+        const incoming = new Set(['cliente', 'in', 'recebida'])
 
         let direcao: string
-        if (typeLower) {
-          if (outgoingTypes.has(typeLower)) direcao = 'out'
-          else if (incomingTypes.has(typeLower)) direcao = 'in'
-          else direcao = 'in' // type com nome do cliente etc. → in
-        } else if (rawDirecao === 'in' || rawDirecao === 'out') {
-          direcao = rawDirecao
+        if (incoming.has(typeLower) || incoming.has(nomeLower)) {
+          direcao = 'in'
+        } else if (outgoing.has(typeLower) || outgoing.has(nomeLower)) {
+          direcao = 'out'
+        } else if (rawDirecao === 'in') {
+          direcao = 'in'
+        } else if (rawDirecao === 'out' && !nomeLower && !typeLower) {
+          // só confia em direcao='out' quando não há type/nome opinando.
+          // se houver nome/type que não bateu com outgoing, é cliente.
+          direcao = 'out'
         } else {
           direcao = 'in'
         }
