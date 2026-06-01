@@ -376,7 +376,7 @@ export default function Usuarios() {
                 autoComplete="off"
                 value={form.evolution_instancia}
                 onChange={(e) => setForm({ ...form, evolution_instancia: e.target.value })}
-                placeholder="ex.: akira-prod"
+                placeholder="ex.: minha-empresa-prod"
               />
             </Field>
             <Field label="API key" hint="Token da instância. Fica oculto até clicar no olho.">
@@ -400,6 +400,7 @@ export default function Usuarios() {
               />
             </Field>
           </div>
+
 
           {editing && (
             <p className="text-xs text-fg-3 pt-2 border-t border-border">

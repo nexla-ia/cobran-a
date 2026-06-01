@@ -160,6 +160,7 @@ button:not(:disabled):active {
   transition: background-color 160ms ease, color 160ms ease;
 }
 
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

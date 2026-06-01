@@ -62,6 +62,15 @@ export type Cobranca = {
   vencimento: string
   status: CobrancaStatus
   pago_em: string | null
+  // Overrides opcionais da automação (NULL = usa regra do user)
+  dias_ate_cancelar_ovr: number | null
+  envios_por_dia_ovr: number | null
+  intervalo_envios_horas_ovr: number | null
+  automacao_ativa_ovr: boolean | null
+  // Estado de envios automáticos
+  total_envios: number
+  envios_hoje: number
+  ultimo_envio_em: string | null
   created_at: string
 }
 
@@ -73,6 +82,14 @@ export type ProfileRow = {
   evolution_instancia: string | null
   evolution_api_key: string | null
   conversa_tabela: string | null
+  automacao_ativa: boolean
+  dias_ate_cancelar: number
+  envios_por_dia: number
+  intervalo_envios_horas: number
+  horario_inicio: string
+  horario_fim: string
+  dias_semana: number[]
+  cancelar_automatico: boolean
   created_at: string
 }
 
@@ -107,8 +124,34 @@ export type Database = {
       >
       cobrancas: TableShape<
         Cobranca,
-        Partial<Pick<Cobranca, 'id' | 'user_id' | 'created_at'>> &
-          Omit<Cobranca, 'id' | 'user_id' | 'created_at'>,
+        Partial<
+          Pick<
+            Cobranca,
+            | 'id'
+            | 'user_id'
+            | 'created_at'
+            | 'total_envios'
+            | 'envios_hoje'
+            | 'ultimo_envio_em'
+            | 'dias_ate_cancelar_ovr'
+            | 'envios_por_dia_ovr'
+            | 'intervalo_envios_horas_ovr'
+            | 'automacao_ativa_ovr'
+          >
+        > &
+          Omit<
+            Cobranca,
+            | 'id'
+            | 'user_id'
+            | 'created_at'
+            | 'total_envios'
+            | 'envios_hoje'
+            | 'ultimo_envio_em'
+            | 'dias_ate_cancelar_ovr'
+            | 'envios_por_dia_ovr'
+            | 'intervalo_envios_horas_ovr'
+            | 'automacao_ativa_ovr'
+          >,
         Partial<Omit<Cobranca, 'id' | 'created_at'>>
       >
       mensagens: TableShape<

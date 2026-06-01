@@ -7,6 +7,7 @@ import Clientes from './pages/Clientes'
 import Cobrancas from './pages/Cobrancas'
 import Envios from './pages/Envios'
 import Mensagens from './pages/Mensagens'
+import Configuracoes from './pages/Configuracoes'
 import Login from './pages/Login'
 import Usuarios from './pages/Usuarios'
 import { useAuth } from './lib/auth'
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/cobrancas" element={<Cobrancas />} />
           <Route path="/envios" element={<Envios />} />
           <Route path="/mensagens" element={<Mensagens />} />
+          <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/usuarios" element={<Usuarios />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

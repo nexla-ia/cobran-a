@@ -436,7 +436,6 @@ export default function Envios() {
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Mensagem</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Status</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Enviado em</th>
-                <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Lido em</th>
               </tr>
             </thead>
             <tbody className="stagger">
@@ -486,9 +485,6 @@ export default function Envios() {
                     </td>
                     <td className="px-4 py-3 align-top text-fg-3 tabular text-xs">
                       {formatDateTime(r.enviado_em)}
-                    </td>
-                    <td className="px-4 py-3 align-top text-fg-3 tabular text-xs">
-                      {formatDateTime(r.lido_em)}
                     </td>
                   </tr>
                 )

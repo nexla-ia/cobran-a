@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, FileDown, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search } from 'lucide-react'
+import { Plus, Trash2, FileDown, FileUp, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase, isSupabaseConfigured, syncOverdueCobrancas } from '@/lib/supabase'
 import type { Cliente, Cobranca, CobrancaStatus } from '@/types/db'
@@ -88,6 +88,26 @@ export default function Cobrancas() {
   const [statusFilter, setStatusFilter] = useState<'todos' | CobrancaStatus>('todos')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [importOpen, setImportOpen] = useState(false)
+  const [importPreview, setImportPreview] = useState<
+    | {
+        rows: Array<{
+          row: number
+          documento: string
+          nome: string
+          descricao: string
+          valor: number
+          vencimento: string
+          status: CobrancaStatus
+          cliente_id: string | null
+          error?: string
+        }>
+        ok: number
+        falha: number
+      }
+    | null
+  >(null)
+  const [importing, setImporting] = useState(false)
   const [sending, setSending] = useState(false)
   const [ctxMenu, setCtxMenu] = useState<{ id: string; x: number; y: number } | null>(null)
 
@@ -334,6 +354,163 @@ export default function Cobrancas() {
     }
   }
 
+  function downloadTemplate() {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        documento: '000.000.000-00',
+        nome: 'Mensalidade Maio/2026',
+        descricao: 'Plano premium — referente a maio',
+        valor: 199.9,
+        vencimento: '2026-05-28',
+        status: 'pendente',
+      },
+      {
+        documento: '00.000.000/0000-00',
+        nome: 'Serviço de consultoria',
+        descricao: 'Pagamento referente ao contrato 1234',
+        valor: 1500,
+        vencimento: '2026-06-10',
+        status: 'pendente',
+      },
+    ])
+    // Largura das colunas
+    ;(ws as XLSX.WorkSheet)['!cols'] = [
+      { wch: 22 }, // documento
+      { wch: 28 }, // nome
+      { wch: 36 }, // descricao
+      { wch: 12 }, // valor
+      { wch: 14 }, // vencimento
+      { wch: 12 }, // status
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Cobranças')
+    // Aba de instruções
+    const aux = XLSX.utils.aoa_to_sheet([
+      ['Como preencher'],
+      [''],
+      ['documento', 'CPF (PF) ou CNPJ (PJ) do cliente já cadastrado. Com ou sem formatação.'],
+      ['nome', 'Título curto da cobrança.'],
+      ['descricao', 'Detalhes da cobrança.'],
+      ['valor', 'Valor em reais com ponto decimal (ex.: 199.90).'],
+      ['vencimento', 'Data ISO YYYY-MM-DD (ex.: 2026-05-28).'],
+      ['status', 'Opcional. pendente / pago / atrasado / cancelado. Default: pendente.'],
+      [''],
+      ['Apague estas linhas de exemplo antes de importar.'],
+    ])
+    ;(aux as XLSX.WorkSheet)['!cols'] = [{ wch: 16 }, { wch: 80 }]
+    XLSX.utils.book_append_sheet(wb, aux, 'Instruções')
+    XLSX.writeFile(wb, 'modelo-cobrancas.xlsx')
+  }
+
+  function onlyDigits(s: string | number | null | undefined) {
+    return String(s ?? '').replace(/\D/g, '')
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const data = await file.arrayBuffer()
+      const wb = XLSX.read(data, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+      if (raw.length === 0) {
+        toast.error('Planilha vazia.')
+        return
+      }
+      const validStatus: CobrancaStatus[] = ['pendente', 'pago', 'atrasado', 'cancelado']
+      const byDoc = new Map<string, Cliente>()
+      clientes.forEach((c) => byDoc.set(onlyDigits(c.documento), c))
+
+      const rows = raw.map((r, idx) => {
+        const documento = String((r as { documento?: string }).documento ?? '').trim()
+        const nome = String((r as { nome?: string }).nome ?? '').trim()
+        const descricao = String((r as { descricao?: string }).descricao ?? '').trim()
+        const valorRaw = (r as { valor?: number | string }).valor ?? 0
+        const valor =
+          typeof valorRaw === 'number'
+            ? valorRaw
+            : Number(String(valorRaw).replace(/[^0-9.,-]/g, '').replace(/\./g, '').replace(',', '.'))
+        const vencimentoRaw = String((r as { vencimento?: string }).vencimento ?? '').trim()
+        let vencimento = vencimentoRaw
+        // aceita também DD/MM/YYYY
+        const m = vencimentoRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+        if (m) vencimento = `${m[3]}-${m[2]}-${m[1]}`
+        const statusRaw =
+          String((r as { status?: string }).status ?? 'pendente').toLowerCase().trim() ||
+          'pendente'
+        const status = (validStatus.includes(statusRaw as CobrancaStatus)
+          ? (statusRaw as CobrancaStatus)
+          : 'pendente') as CobrancaStatus
+
+        const docDigits = onlyDigits(documento)
+        const cliente = docDigits ? byDoc.get(docDigits) ?? null : null
+
+        let error: string | undefined
+        if (!documento) error = 'documento vazio'
+        else if (!cliente) error = 'cliente não encontrado'
+        else if (!nome) error = 'nome vazio'
+        else if (!descricao) error = 'descrição vazia'
+        else if (!Number.isFinite(valor) || valor <= 0) error = 'valor inválido'
+        else if (!/^\d{4}-\d{2}-\d{2}$/.test(vencimento)) error = 'vencimento inválido'
+
+        return {
+          row: idx + 2, // +2 pra contar header como linha 1
+          documento,
+          nome,
+          descricao,
+          valor: Number.isFinite(valor) ? valor : 0,
+          vencimento,
+          status,
+          cliente_id: cliente?.id ?? null,
+          error,
+        }
+      })
+
+      const ok = rows.filter((r) => !r.error).length
+      setImportPreview({ rows, ok, falha: rows.length - ok })
+    } catch (err) {
+      console.error('[import] parse falhou:', err)
+      toast.error('Falha ao ler arquivo. Use o modelo .xlsx.')
+    }
+  }
+
+  async function confirmImport() {
+    if (!importPreview) return
+    const validRows = importPreview.rows.filter((r) => !r.error)
+    if (validRows.length === 0) {
+      toast.error('Nenhuma linha válida pra importar.')
+      return
+    }
+    setImporting(true)
+    try {
+      const payloads = validRows.map((r) => ({
+        cliente_id: r.cliente_id!,
+        nome: r.nome,
+        descricao: r.descricao,
+        valor: r.valor,
+        vencimento: r.vencimento,
+        status: r.status,
+        pago_em: r.status === 'pago' ? new Date().toISOString().slice(0, 10) : null,
+      }))
+      const { error } = await supabase.from('cobrancas').insert(payloads)
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      toast.success(`${validRows.length} cobrança(s) importada(s).`)
+      setImportOpen(false)
+      setImportPreview(null)
+      load()
+    } catch (e) {
+      console.error('[import] insert falhou:', e)
+      toast.error('Falha ao importar.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   function exportXlsx() {
     const ws = XLSX.utils.json_to_sheet(
       filtered.map((r) => ({
@@ -385,6 +562,18 @@ export default function Cobrancas() {
         subtitle="Faturas a receber dos seus clientes."
         actions={
           <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setImportPreview(null)
+                setImportOpen(true)
+              }}
+              disabled={clientes.length === 0}
+              title={clientes.length === 0 ? 'Cadastre clientes antes de importar' : ''}
+            >
+              <FileUp className="size-4" />
+              Importar
+            </Button>
             <Button variant="secondary" onClick={exportXlsx} disabled={filtered.length === 0}>
               <FileDown className="size-4" />
               Exportar
@@ -728,6 +917,17 @@ export default function Cobrancas() {
               />
             </Field>
           )}
+
+          {editing && editing.total_envios > 0 && (
+            <div className="pt-4 mt-2 border-t border-border text-[11px] text-fg-4">
+              Esta cobrança já foi enviada{' '}
+              <span className="font-medium text-fg-3">{editing.total_envios}</span>{' '}
+              {editing.total_envios === 1 ? 'vez' : 'vezes'}
+              {editing.ultimo_envio_em &&
+                ` · último envio ${new Date(editing.ultimo_envio_em).toLocaleString('pt-BR')}`}
+              . As regras de envio são as configuradas em /usuarios.
+            </div>
+          )}
         </form>
       </Modal>
 
@@ -787,6 +987,148 @@ export default function Cobrancas() {
             : []
         }
       />
+
+      <Modal
+        open={importOpen}
+        onClose={() => {
+          setImportOpen(false)
+          setImportPreview(null)
+        }}
+        title="Importar cobranças"
+        footer={
+          importPreview ? (
+            <>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setImportPreview(null)}
+              >
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmImport}
+                disabled={importing || importPreview.ok === 0}
+              >
+                {importing ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
+                Importar {importPreview.ok} cobrança(s)
+              </Button>
+            </>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setImportOpen(false)}
+            >
+              Cancelar
+            </Button>
+          )
+        }
+      >
+        {!importPreview ? (
+          <div className="space-y-4">
+            <p className="text-sm text-fg-3 leading-relaxed">
+              Importe cobranças em lote a partir de uma planilha. A coluna{' '}
+              <code className="font-mono text-fg-2 bg-hover px-1 py-0.5 rounded">documento</code>{' '}
+              (CPF/CNPJ) é usada pra encontrar o cliente já cadastrado.
+            </p>
+
+            <div className="rounded-lg border border-border bg-bg p-4">
+              <div className="text-xs font-medium text-fg-2 mb-2">1. Baixe o modelo</div>
+              <Button type="button" variant="secondary" onClick={downloadTemplate}>
+                <Download className="size-4" />
+                Baixar modelo .xlsx
+              </Button>
+              <div className="mt-2 text-[11px] text-fg-4">
+                A planilha vem com a aba <b>Cobranças</b> + uma aba <b>Instruções</b>.
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-bg p-4">
+              <div className="text-xs font-medium text-fg-2 mb-2">2. Envie o arquivo preenchido</div>
+              <label className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-md bg-fg text-surface hover:bg-fg-2 transition cursor-pointer">
+                <FileUp className="size-4" />
+                Selecionar arquivo .xlsx
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="sr-only"
+                  onChange={handleImportFile}
+                />
+              </label>
+            </div>
+
+            <div className="text-[11px] text-fg-4 leading-relaxed">
+              Campos esperados: <code className="font-mono">documento, nome, descricao, valor,
+              vencimento, status</code>. Status é opcional (default: pendente).
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="px-2 py-0.5 rounded bg-green-50 text-success border border-green-200 text-xs font-medium">
+                {importPreview.ok} ok
+              </span>
+              {importPreview.falha > 0 && (
+                <span className="px-2 py-0.5 rounded bg-red-50 text-danger border border-red-200 text-xs font-medium">
+                  {importPreview.falha} com erro
+                </span>
+              )}
+              <span className="text-fg-4 text-xs">
+                de {importPreview.rows.length} linha(s) totais
+              </span>
+            </div>
+
+            <div className="border border-border rounded-md overflow-hidden max-h-[360px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-bg sticky top-0">
+                  <tr className="border-b border-border">
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium w-10">#</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Documento</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Nome</th>
+                    <th className="px-2 py-2 text-right text-fg-3 font-medium">Valor</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Vencimento</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.rows.map((r) => (
+                    <tr
+                      key={r.row}
+                      className={`border-b border-border-2 last:border-b-0 ${
+                        r.error ? 'bg-red-50/50' : ''
+                      }`}
+                    >
+                      <td className="px-2 py-1.5 text-fg-4 tabular">{r.row}</td>
+                      <td className="px-2 py-1.5 font-mono text-fg-2 tabular">
+                        {r.documento || '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-fg">
+                        {r.nome || '—'}
+                        {r.error && (
+                          <div className="text-[10px] text-danger mt-0.5">{r.error}</div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular font-medium text-fg">
+                        {brl.format(r.valor)}
+                      </td>
+                      <td className="px-2 py-1.5 text-fg-3 tabular">{r.vencimento || '—'}</td>
+                      <td className="px-2 py-1.5 text-fg-3">{r.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {importPreview.falha > 0 && (
+              <p className="text-[11px] text-fg-4">
+                Linhas com erro serão ignoradas. Corrija na planilha e re-envie se quiser
+                importar todas.
+              </p>
+            )}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

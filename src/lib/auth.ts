@@ -19,6 +19,15 @@ export type Profile = {
   evolution_instancia: string | null
   evolution_api_key: string | null
   conversa_tabela: string | null
+  // Regras de automação
+  automacao_ativa: boolean
+  dias_ate_cancelar: number
+  envios_por_dia: number
+  intervalo_envios_horas: number
+  horario_inicio: string
+  horario_fim: string
+  dias_semana: number[]
+  cancelar_automatico: boolean
   created_at: string
 }
 
