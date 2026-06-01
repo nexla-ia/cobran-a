@@ -121,11 +121,16 @@ export default function Mensagens() {
     setLoading(true)
     setError(null)
     try {
-      const [c, m] = await Promise.all([
+      const [c, m, atd] = await Promise.all([
         supabase.from('clientes').select('*').order('nome'),
         tabela
           ? supabase.from(tabela as never).select('*').limit(2000)
           : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('mensagens_atendente')
+          .select('*')
+          .order('hora_last_message', { ascending: true })
+          .limit(2000),
       ])
       if (c.error) console.warn('[mensagens] clientes:', c.error.message)
       if (m.error) {
@@ -134,12 +139,36 @@ export default function Mensagens() {
           `Não consegui ler a tabela "${tabela}": ${m.error.message}`,
         )
       }
+      if (atd.error) console.warn('[mensagens] atendente:', atd.error.message)
+
       setClientes(c.data ?? [])
-      const rawRows = (m.data as Record<string, unknown>[]) ?? []
-      const normalized = rawRows.map((r, i) => normalizeRow(r, i))
-      // Ordena por criada_em asc (mais antigas primeiro)
-      normalized.sort((a, b) => new Date(a.criada_em).getTime() - new Date(b.criada_em).getTime())
-      setMsgs(normalized)
+
+      const aiRows = (m.data as Record<string, unknown>[]) ?? []
+      const aiNormalized = aiRows.map((r, i) => ({
+        ...normalizeRow(r, i),
+        source: 'ai' as const,
+      }))
+
+      const atdRows = (atd.data as Record<string, unknown>[]) ?? []
+      const atdNormalized: ConversaMsg[] = atdRows.map((r, i) => ({
+        id: r.id ? String(r.id) : `atd-${i}`,
+        telefone: (r.numero as string | null) ?? null,
+        conteudo: (r.mensagem as string | null) ?? null,
+        direcao: 'out', // atendente sempre envia (saída)
+        criada_em:
+          (r.hora_last_message as string | undefined) ??
+          (r.created_at as string | undefined) ??
+          new Date().toISOString(),
+        source: 'atendente',
+        atendente_nome: (r.nome as string | null) ?? null,
+        base64: (r.base64 as string | null) ?? null,
+        midia_type: (r.type as string | null) ?? null,
+      }))
+
+      const merged = [...aiNormalized, ...atdNormalized].sort(
+        (a, b) => new Date(a.criada_em).getTime() - new Date(b.criada_em).getTime(),
+      )
+      setMsgs(merged)
     } catch (e) {
       console.error('[mensagens] load:', e)
       setError((e as Error).message)
@@ -153,22 +182,27 @@ export default function Mensagens() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabela])
 
-  // Realtime na tabela apontada pelo profile.
+  // Realtime na tabela apontada pelo profile + mensagens_atendente.
   // Obs.: Realtime do Supabase só funciona em TABELAS base — views ficam mudas.
   // Por isso também rodamos um polling leve como fallback.
   useEffect(() => {
-    if (!isSupabaseConfigured || !tabela) return
-    const channel = supabase
-      .channel(`conv-${tabela}`)
-      .on(
+    if (!isSupabaseConfigured) return
+    const channel = supabase.channel(`conv-${tabela ?? 'none'}`)
+    if (tabela) {
+      channel.on(
         // @ts-ignore — postgres_changes não tem types completos
         'postgres_changes',
         { event: '*', schema: 'public', table: tabela },
-        () => {
-          load()
-        },
+        () => load(),
       )
-      .subscribe()
+    }
+    channel.on(
+      // @ts-ignore — postgres_changes não tem types completos
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'mensagens_atendente' },
+      () => load(),
+    )
+    channel.subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
@@ -387,16 +421,39 @@ export default function Mensagens() {
                             <div
                               className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
                                 isOut
-                                  ? 'bg-fg text-surface rounded-br-sm'
+                                  ? m.source === 'atendente'
+                                    ? 'bg-emerald-600 text-white rounded-br-sm'
+                                    : 'bg-fg text-surface rounded-br-sm'
                                   : 'bg-surface border border-border text-fg rounded-bl-sm'
                               }`}
                             >
+                              {m.source === 'atendente' && m.atendente_nome && (
+                                <div className="text-[10px] font-semibold opacity-80 mb-0.5">
+                                  {m.atendente_nome}
+                                </div>
+                              )}
+                              {m.base64 &&
+                              (m.midia_type === 'image' || m.midia_type === 'imagem') ? (
+                                <img
+                                  src={
+                                    m.base64.startsWith('data:')
+                                      ? m.base64
+                                      : `data:image/jpeg;base64,${m.base64}`
+                                  }
+                                  alt="anexo"
+                                  className="rounded-md max-w-full mb-1"
+                                />
+                              ) : m.base64 ? (
+                                <div className="text-[11px] opacity-80 italic mb-1">
+                                  [anexo {m.midia_type ?? 'mídia'}]
+                                </div>
+                              ) : null}
                               <div className="whitespace-pre-wrap break-words">
                                 {m.conteudo ?? <span className="italic opacity-60">[sem texto]</span>}
                               </div>
                               <div
                                 className={`text-[10px] mt-1 tabular ${
-                                  isOut ? 'text-surface/70 text-right' : 'text-fg-4'
+                                  isOut ? 'text-white/70 text-right' : 'text-fg-4'
                                 }`}
                               >
                                 {formatTime(m.criada_em)}

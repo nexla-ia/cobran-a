@@ -82,6 +82,11 @@ export type ConversaMsg = {
   conteudo: string | null
   direcao: 'in' | 'out' | string
   criada_em: string
+  // Campos opcionais: presentes só quando a mensagem vem de mensagens_atendente
+  source?: 'ai' | 'atendente'
+  atendente_nome?: string | null
+  base64?: string | null
+  midia_type?: string | null
 }
 
 type TableShape<R, I, U> = {
