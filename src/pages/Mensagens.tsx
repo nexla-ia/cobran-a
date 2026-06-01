@@ -157,25 +157,28 @@ export default function Mensagens() {
 
         // Determina direção:
         // 1) coluna direcao se preenchida ('in'/'out')
-        // 2) fallback pelo type ('atendente'/'cliente') que o n8n também usa
-        // 3) fallback final: 'out'
+        // 2) fallback pelo type — SÓ vira 'out' se for explicitamente
+        //    atendente/sistema/bot/etc.; tudo o mais (nome do cliente,
+        //    'Cliente', vazio…) cai em 'in'.
         const rawDirecao = (r.direcao as string | undefined)?.toLowerCase()
         const typeLower = (r.type as string | undefined)?.toLowerCase().trim() ?? ''
+        const outgoingTypes = new Set([
+          'atendente',
+          'out',
+          'enviada',
+          'sistema',
+          'bot',
+          'ia',
+          'ai',
+          'nexla',
+        ])
         let direcao: string
         if (rawDirecao === 'in' || rawDirecao === 'out') {
           direcao = rawDirecao
-        } else if (typeLower === 'cliente' || typeLower === 'in' || typeLower === 'recebida') {
-          direcao = 'in'
-        } else if (
-          typeLower === 'atendente' ||
-          typeLower === 'out' ||
-          typeLower === 'enviada' ||
-          typeLower === 'sistema' ||
-          typeLower === 'bot'
-        ) {
+        } else if (outgoingTypes.has(typeLower)) {
           direcao = 'out'
         } else {
-          direcao = 'out'
+          direcao = 'in'
         }
 
         // Escolha do timestamp:
