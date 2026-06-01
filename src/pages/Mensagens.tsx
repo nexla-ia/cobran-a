@@ -156,12 +156,13 @@ export default function Mensagens() {
         const telefone = rawNumero ? rawNumero.split('@')[0] : null
 
         // Determina direção:
-        // 1) coluna direcao se preenchida ('in'/'out')
-        // 2) fallback pelo type — SÓ vira 'out' se for explicitamente
-        //    atendente/sistema/bot/etc.; tudo o mais (nome do cliente,
-        //    'Cliente', vazio…) cai em 'in'.
-        const rawDirecao = (r.direcao as string | undefined)?.toLowerCase()
+        // 1) coluna 'type' tem prioridade — n8n usa type pra dizer quem mandou
+        //    ('atendente'/'sistema'/'bot'/'ia' = out; nome do cliente,
+        //    'Cliente', 'in'/'recebida' = in).
+        // 2) se type for vazio, usa a coluna 'direcao' (que pode ter default 'out')
+        // 3) fallback final: 'in' (assume entrada quando ambíguo)
         const typeLower = (r.type as string | undefined)?.toLowerCase().trim() ?? ''
+        const rawDirecao = (r.direcao as string | undefined)?.toLowerCase()
         const outgoingTypes = new Set([
           'atendente',
           'out',
@@ -172,11 +173,15 @@ export default function Mensagens() {
           'ai',
           'nexla',
         ])
+        const incomingTypes = new Set(['cliente', 'in', 'recebida'])
+
         let direcao: string
-        if (rawDirecao === 'in' || rawDirecao === 'out') {
+        if (typeLower) {
+          if (outgoingTypes.has(typeLower)) direcao = 'out'
+          else if (incomingTypes.has(typeLower)) direcao = 'in'
+          else direcao = 'in' // type com nome do cliente etc. → in
+        } else if (rawDirecao === 'in' || rawDirecao === 'out') {
           direcao = rawDirecao
-        } else if (outgoingTypes.has(typeLower)) {
-          direcao = 'out'
         } else {
           direcao = 'in'
         }
