@@ -154,7 +154,29 @@ export default function Mensagens() {
         const rawNumero = (r.numero as string | null) ?? null
         // Estripa @s.whatsapp.net caso o n8n tenha gravado com sufixo
         const telefone = rawNumero ? rawNumero.split('@')[0] : null
-        const direcao = (r.direcao as string | undefined) ?? 'out'
+
+        // Determina direção:
+        // 1) coluna direcao se preenchida ('in'/'out')
+        // 2) fallback pelo type ('atendente'/'cliente') que o n8n também usa
+        // 3) fallback final: 'out'
+        const rawDirecao = (r.direcao as string | undefined)?.toLowerCase()
+        const typeLower = (r.type as string | undefined)?.toLowerCase().trim() ?? ''
+        let direcao: string
+        if (rawDirecao === 'in' || rawDirecao === 'out') {
+          direcao = rawDirecao
+        } else if (typeLower === 'cliente' || typeLower === 'in' || typeLower === 'recebida') {
+          direcao = 'in'
+        } else if (
+          typeLower === 'atendente' ||
+          typeLower === 'out' ||
+          typeLower === 'enviada' ||
+          typeLower === 'sistema' ||
+          typeLower === 'bot'
+        ) {
+          direcao = 'out'
+        } else {
+          direcao = 'out'
+        }
 
         // Escolha do timestamp:
         // Se hora_last_message está mais de 1 dia distante de created_at,
