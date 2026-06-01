@@ -154,11 +154,12 @@ export default function Mensagens() {
         const rawNumero = (r.numero as string | null) ?? null
         // Estripa @s.whatsapp.net caso o n8n tenha gravado com sufixo
         const telefone = rawNumero ? rawNumero.split('@')[0] : null
+        const direcao = (r.direcao as string | undefined) ?? 'out'
         return {
           id: r.id ? String(r.id) : `atd-${i}`,
           telefone,
           conteudo: (r.mensagem as string | null) ?? null,
-          direcao: 'out', // atendente sempre envia (saída)
+          direcao,
           criada_em:
             (r.hora_last_message as string | undefined) ??
             (r.created_at as string | undefined) ??
@@ -432,7 +433,7 @@ export default function Mensagens() {
                                   : 'bg-surface border border-border text-fg rounded-bl-sm'
                               }`}
                             >
-                              {m.source === 'atendente' && m.atendente_nome && (
+                              {isOut && m.source === 'atendente' && m.atendente_nome && (
                                 <div className="text-[10px] font-semibold opacity-80 mb-0.5">
                                   {m.atendente_nome}
                                 </div>
