@@ -72,7 +72,16 @@ export type ProfileRow = {
   role: Role
   evolution_instancia: string | null
   evolution_api_key: string | null
+  conversa_tabela: string | null
   created_at: string
+}
+
+export type ConversaMsg = {
+  id: string
+  telefone: string | null
+  conteudo: string | null
+  direcao: 'in' | 'out' | string
+  criada_em: string
 }
 
 type TableShape<R, I, U> = {
@@ -125,6 +134,7 @@ export type Database = {
           p_role: Role
           p_evolution_instancia: string | null
           p_evolution_api_key: string | null
+          p_conversa_tabela: string | null
         }
         Returns: string
       }

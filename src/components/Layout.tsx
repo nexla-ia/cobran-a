@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutGrid, Users, Receipt, CircleDollarSign, Menu, X, LogOut, ShieldCheck, Send } from 'lucide-react'
+import { LayoutGrid, Users, Receipt, CircleDollarSign, Menu, X, LogOut, ShieldCheck, Send, MessageSquare } from 'lucide-react'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { signOut, useAuth } from '@/lib/auth'
 import { confirmDialog, toast } from '@/lib/dialogs'
@@ -10,6 +10,7 @@ const nav = [
   { to: '/clientes', label: 'Clientes', icon: Users, end: false, adminOnly: false },
   { to: '/cobrancas', label: 'Cobranças', icon: Receipt, end: false, adminOnly: false },
   { to: '/envios', label: 'Envios', icon: Send, end: false, adminOnly: false },
+  { to: '/mensagens', label: 'Mensagens', icon: MessageSquare, end: false, adminOnly: false },
   { to: '/usuarios', label: 'Usuários', icon: ShieldCheck, end: false, adminOnly: true },
 ] as const
 

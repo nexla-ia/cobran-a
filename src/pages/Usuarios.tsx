@@ -27,6 +27,7 @@ type Form = {
   role: Role
   evolution_instancia: string
   evolution_api_key: string
+  conversa_tabela: string
 }
 
 const empty: Form = {
@@ -36,6 +37,7 @@ const empty: Form = {
   role: 'user',
   evolution_instancia: '',
   evolution_api_key: '',
+  conversa_tabela: '',
 }
 
 export default function Usuarios() {
@@ -93,6 +95,7 @@ export default function Usuarios() {
       role: p.role,
       evolution_instancia: p.evolution_instancia ?? '',
       evolution_api_key: p.evolution_api_key ?? '',
+      conversa_tabela: p.conversa_tabela ?? '',
     })
     setOpen(true)
   }
@@ -121,6 +124,7 @@ export default function Usuarios() {
             role: form.role,
             evolution_instancia: form.evolution_instancia.trim() || null,
             evolution_api_key: form.evolution_api_key.trim() || null,
+            conversa_tabela: form.conversa_tabela.trim() || null,
           })
           .eq('id', editing.id)
         const timeout = new Promise<{ error: { message: string } }>((_, reject) =>
@@ -148,6 +152,7 @@ export default function Usuarios() {
         p_role: form.role,
         p_evolution_instancia: form.evolution_instancia.trim() || null,
         p_evolution_api_key: form.evolution_api_key.trim() || null,
+        p_conversa_tabela: form.conversa_tabela.trim() || null,
       })
       if (error) {
         toast.error(error.message)
@@ -380,6 +385,18 @@ export default function Usuarios() {
                 value={form.evolution_api_key}
                 onChange={(e) => setForm({ ...form, evolution_api_key: e.target.value })}
                 placeholder="UUID da instância"
+              />
+            </Field>
+            <Field
+              label="Tabela de conversas"
+              hint="Nome da tabela no Supabase onde o n8n grava as mensagens (in/out) deste usuário."
+            >
+              <Input
+                autoComplete="off"
+                value={form.conversa_tabela}
+                onChange={(e) => setForm({ ...form, conversa_tabela: e.target.value })}
+                placeholder="ex.: conversas_nexla"
+                className="font-mono"
               />
             </Field>
           </div>
