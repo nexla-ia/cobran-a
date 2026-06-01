@@ -3,6 +3,58 @@ import { Search, X, MessageSquare, Loader2 } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import type { Cliente, ConversaMsg } from '@/types/db'
+
+// Normaliza uma linha vinda de qualquer schema (n8n LangChain ou normalizado)
+// pra ConversaMsg.
+function normalizeRow(row: Record<string, unknown>, idx: number): ConversaMsg {
+  const get = (key: string) =>
+    row[key] !== undefined && row[key] !== null ? row[key] : undefined
+
+  // id pode ser int (n8n) ou uuid
+  const rawId = get('id')
+  const id = rawId !== undefined ? String(rawId) : `idx-${idx}`
+
+  // telefone: direto ou extraído de session_id
+  let telefone = get('telefone') as string | undefined
+  if (!telefone) {
+    const session = get('session_id') as string | undefined
+    if (session) telefone = session.split('@')[0]
+  }
+
+  // conteudo: direto ou de message.content (JSONB do LangChain)
+  let conteudo = get('conteudo') as string | undefined
+  if (!conteudo) {
+    const message = get('message') as Record<string, unknown> | undefined
+    if (message && typeof message.content === 'string') {
+      conteudo = message.content
+    }
+  }
+
+  // direcao: direta ou inferida do tipo LangChain (human=in, ai=out)
+  let direcao = get('direcao') as string | undefined
+  if (!direcao) {
+    const message = get('message') as Record<string, unknown> | undefined
+    const t = message?.type as string | undefined
+    if (t === 'human') direcao = 'in'
+    else if (t === 'ai') direcao = 'out'
+    else direcao = 'out'
+  }
+
+  // timestamp: criada_em > created_at > timestamp > fallback
+  const criada_em =
+    (get('criada_em') as string | undefined) ??
+    (get('created_at') as string | undefined) ??
+    (get('timestamp') as string | undefined) ??
+    new Date().toISOString()
+
+  return {
+    id,
+    telefone: telefone ?? null,
+    conteudo: conteudo ?? null,
+    direcao,
+    criada_em,
+  }
+}
 import { EmptyState, PageHeader } from '@/components/ui'
 import { formatPhoneDisplay } from '@/lib/lookup'
 
@@ -72,22 +124,22 @@ export default function Mensagens() {
       const [c, m] = await Promise.all([
         supabase.from('clientes').select('*').order('nome'),
         tabela
-          ? supabase
-              .from(tabela as never)
-              .select('id, telefone, conteudo, direcao, criada_em')
-              .order('criada_em', { ascending: true })
-              .limit(2000)
+          ? supabase.from(tabela as never).select('*').limit(2000)
           : Promise.resolve({ data: [], error: null }),
       ])
       if (c.error) console.warn('[mensagens] clientes:', c.error.message)
       if (m.error) {
         console.warn('[mensagens] conversas:', m.error.message)
         setError(
-          `Não consegui ler a tabela "${tabela}". Confere se ela existe e tem as colunas esperadas: ${m.error.message}`,
+          `Não consegui ler a tabela "${tabela}": ${m.error.message}`,
         )
       }
       setClientes(c.data ?? [])
-      setMsgs((m.data as ConversaMsg[]) ?? [])
+      const rawRows = (m.data as Record<string, unknown>[]) ?? []
+      const normalized = rawRows.map((r, i) => normalizeRow(r, i))
+      // Ordena por criada_em asc (mais antigas primeiro)
+      normalized.sort((a, b) => new Date(a.criada_em).getTime() - new Date(b.criada_em).getTime())
+      setMsgs(normalized)
     } catch (e) {
       console.error('[mensagens] load:', e)
       setError((e as Error).message)
