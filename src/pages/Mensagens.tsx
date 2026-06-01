@@ -101,7 +101,9 @@ export default function Mensagens() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabela])
 
-  // Realtime na tabela apontada pelo profile
+  // Realtime na tabela apontada pelo profile.
+  // Obs.: Realtime do Supabase só funciona em TABELAS base — views ficam mudas.
+  // Por isso também rodamos um polling leve como fallback.
   useEffect(() => {
     if (!isSupabaseConfigured || !tabela) return
     const channel = supabase
@@ -118,6 +120,16 @@ export default function Mensagens() {
     return () => {
       supabase.removeChannel(channel)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabela])
+
+  // Polling de 8s como fallback (essencial quando conversa_tabela é uma view)
+  useEffect(() => {
+    if (!isSupabaseConfigured || !tabela) return
+    const handle = window.setInterval(() => {
+      load()
+    }, 8000)
+    return () => window.clearInterval(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabela])
 
