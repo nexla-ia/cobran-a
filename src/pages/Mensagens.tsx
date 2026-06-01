@@ -150,20 +150,25 @@ export default function Mensagens() {
       }))
 
       const atdRows = (atd.data as Record<string, unknown>[]) ?? []
-      const atdNormalized: ConversaMsg[] = atdRows.map((r, i) => ({
-        id: r.id ? String(r.id) : `atd-${i}`,
-        telefone: (r.numero as string | null) ?? null,
-        conteudo: (r.mensagem as string | null) ?? null,
-        direcao: 'out', // atendente sempre envia (saída)
-        criada_em:
-          (r.hora_last_message as string | undefined) ??
-          (r.created_at as string | undefined) ??
-          new Date().toISOString(),
-        source: 'atendente',
-        atendente_nome: (r.nome as string | null) ?? null,
-        base64: (r.base64 as string | null) ?? null,
-        midia_type: (r.type as string | null) ?? null,
-      }))
+      const atdNormalized: ConversaMsg[] = atdRows.map((r, i) => {
+        const rawNumero = (r.numero as string | null) ?? null
+        // Estripa @s.whatsapp.net caso o n8n tenha gravado com sufixo
+        const telefone = rawNumero ? rawNumero.split('@')[0] : null
+        return {
+          id: r.id ? String(r.id) : `atd-${i}`,
+          telefone,
+          conteudo: (r.mensagem as string | null) ?? null,
+          direcao: 'out', // atendente sempre envia (saída)
+          criada_em:
+            (r.hora_last_message as string | undefined) ??
+            (r.created_at as string | undefined) ??
+            new Date().toISOString(),
+          source: 'atendente',
+          atendente_nome: (r.nome as string | null) ?? null,
+          base64: (r.base64 as string | null) ?? null,
+          midia_type: (r.type as string | null) ?? null,
+        }
+      })
 
       const merged = [...aiNormalized, ...atdNormalized].sort(
         (a, b) => new Date(a.criada_em).getTime() - new Date(b.criada_em).getTime(),
