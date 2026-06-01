@@ -155,15 +155,31 @@ export default function Mensagens() {
         // Estripa @s.whatsapp.net caso o n8n tenha gravado com sufixo
         const telefone = rawNumero ? rawNumero.split('@')[0] : null
         const direcao = (r.direcao as string | undefined) ?? 'out'
+
+        // Escolha do timestamp:
+        // Se hora_last_message está mais de 1 dia distante de created_at,
+        // assume que o n8n bugou (mês/dia trocados, fuso errado etc.) e usa
+        // created_at — que é o relógio do banco no momento do INSERT.
+        const createdAt = (r.created_at as string | undefined) ?? null
+        const hora = (r.hora_last_message as string | undefined) ?? null
+        let criada_em = createdAt ?? hora ?? new Date().toISOString()
+        if (createdAt && hora) {
+          const dCreated = new Date(createdAt).getTime()
+          const dHora = new Date(hora).getTime()
+          if (Number.isFinite(dCreated) && Number.isFinite(dHora) && Math.abs(dCreated - dHora) < 86_400_000) {
+            // diferença < 24h: confia no que o n8n mandou
+            criada_em = hora
+          } else {
+            criada_em = createdAt
+          }
+        }
+
         return {
           id: r.id ? String(r.id) : `atd-${i}`,
           telefone,
           conteudo: (r.mensagem as string | null) ?? null,
           direcao,
-          criada_em:
-            (r.hora_last_message as string | undefined) ??
-            (r.created_at as string | undefined) ??
-            new Date().toISOString(),
+          criada_em,
           source: 'atendente',
           atendente_nome: (r.nome as string | null) ?? null,
           base64: (r.base64 as string | null) ?? null,
