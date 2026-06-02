@@ -260,7 +260,7 @@ export default function Cobrancas() {
     if (ids.length === 0) return
     const ok = await confirmDialog({
       title: `Enviar ${ids.length} cobrança(s)?`,
-      message: 'As informações do cliente e do título serão enviadas ao disparador (n8n).',
+      message: 'O sistema vai enviar a cobrança para o WhatsApp do cliente.',
       confirmLabel: 'Enviar',
     })
     if (!ok) return
@@ -340,7 +340,7 @@ export default function Cobrancas() {
             body: payload,
           })
           toast.success(
-            `${totalCobrancas} cobrança(s) enviada(s). Confirme a execução no painel do n8n.`,
+            `${totalCobrancas} cobrança(s) enviada(s). Acompanhe o status em "Envios".`,
             { duration: 6000 },
           )
           clearSelection()

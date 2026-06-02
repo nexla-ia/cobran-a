@@ -180,47 +180,62 @@ export default function Configuracoes() {
         <div className="space-y-4 pt-4 border-t border-border">
           <div>
             <div className="text-xs font-medium text-fg-2 uppercase tracking-wide">
-              Modelo de mensagem
+              Mensagem de cobrança
             </div>
             <div className="text-xs text-fg-3 mt-1">
-              Texto usado pelo n8n pra montar cada cobrança no WhatsApp.
+              Esta é a mensagem que o cliente vai receber no WhatsApp. Use os marcadores
+              abaixo (entre chaves) — eles são trocados automaticamente pelos dados de cada
+              cobrança no momento do envio.
             </div>
           </div>
-          <Field
-            label="Modelo / exemplo"
-            hint="Use os placeholders abaixo. O n8n substitui pelos dados de cada cobrança no momento do envio."
-          >
+
+          <Field label="Texto da mensagem">
             <Textarea
               rows={5}
               value={form.mensagem_template}
               onChange={(e) => update('mensagem_template', e.target.value)}
               placeholder={DEFAULT_TEMPLATE}
-              className="font-mono text-xs"
             />
           </Field>
-          <div className="text-[11px] text-fg-3 leading-relaxed">
-            <span className="font-medium text-fg-2">Placeholders disponíveis:</span>{' '}
-            {[
-              { k: '{cliente}', d: 'nome do cliente' },
-              { k: '{cobranca}', d: 'título da cobrança' },
-              { k: '{descricao}', d: 'descrição completa' },
-              { k: '{valor}', d: 'R$ 199,90' },
-              { k: '{vencimento}', d: '28/05/2026' },
-            ].map((p, i) => (
-              <span key={p.k}>
+
+          <div>
+            <div className="text-[11px] font-medium text-fg-2 mb-2">
+              Clique pra inserir um marcador
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { k: '{cliente}', d: 'Nome do cliente' },
+                { k: '{cobranca}', d: 'Título da cobrança' },
+                { k: '{descricao}', d: 'Descrição completa' },
+                { k: '{valor}', d: 'Valor (ex: R$ 199,90)' },
+                { k: '{vencimento}', d: 'Data (ex: 28/05/2026)' },
+              ].map((p) => (
                 <button
+                  key={p.k}
                   type="button"
                   onClick={() => update('mensagem_template', form.mensagem_template + ' ' + p.k)}
-                  className="font-mono bg-hover px-1 py-0.5 rounded text-fg-2 hover:bg-fg hover:text-surface transition"
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-bg hover:border-fg hover:bg-hover transition text-[11px]"
                   title={p.d}
                 >
-                  {p.k}
+                  <span className="font-mono text-fg-2">{p.k}</span>
+                  <span className="text-fg-4">{p.d}</span>
                 </button>
-                {i < 4 && ' '}
-              </span>
-            ))}
-            <div className="mt-2">
-              Clique num placeholder pra inserir no modelo.
+              ))}
+            </div>
+          </div>
+
+          {/* Preview de como a mensagem fica */}
+          <div className="rounded-lg border border-border bg-bg p-3 space-y-1.5">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-fg-3">
+              Pré-visualização (exemplo)
+            </div>
+            <div className="text-sm text-fg leading-relaxed whitespace-pre-wrap">
+              {(form.mensagem_template || DEFAULT_TEMPLATE)
+                .replace(/\{cliente\}/g, 'Maria Silva')
+                .replace(/\{cobranca\}/g, 'Mensalidade Maio/2026')
+                .replace(/\{descricao\}/g, 'Plano premium — referente a maio')
+                .replace(/\{valor\}/g, 'R$ 199,90')
+                .replace(/\{vencimento\}/g, '28/05/2026')}
             </div>
           </div>
         </div>
@@ -343,18 +358,19 @@ export default function Configuracoes() {
         </div>
       </form>
 
-      <div className="mt-6 p-4 rounded-lg border border-border bg-surface text-xs text-fg-3 space-y-1">
+      <div className="mt-6 p-4 rounded-lg border border-border bg-surface text-xs text-fg-3 space-y-1.5">
         <div className="flex items-center gap-1.5 text-fg-2 font-medium">
           <Settings className="size-3.5" />
           Como funciona
         </div>
         <p>
-          O cron do n8n consulta <code className="font-mono">cobrancas_para_disparar</code> a cada
-          poucos minutos. Essa view já filtra cobranças que respeitam estas regras (status pendente
-          ou atrasado, dentro do horário/dia configurado, sem ultrapassar o limite diário e o
-          intervalo mínimo). Depois de cada disparo, o n8n chama{' '}
-          <code className="font-mono">marcar_cobranca_enviada(id)</code> pra incrementar o
-          contador.
+          O sistema verifica suas cobranças a cada poucos minutos. Quando uma cobrança está
+          pendente ou atrasada e cai dentro da janela (horário e dias configurados acima), ela é
+          enviada automaticamente pra o WhatsApp do cliente usando a mensagem definida aqui.
+        </p>
+        <p>
+          Cada cobrança respeita o limite de envios por dia e o intervalo mínimo entre tentativas
+          — então um cliente nunca recebe duas mensagens muito próximas.
         </p>
       </div>
     </div>

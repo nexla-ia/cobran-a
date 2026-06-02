@@ -259,7 +259,7 @@ export default function Envios() {
               hours: 24,
             }),
           })
-          toast.success('Verificação disparada. Confirme no painel do n8n.', {
+          toast.success('Verificação solicitada. Os status atualizam em instantes.', {
             duration: 5000,
           })
         } catch (e2) {
@@ -277,7 +277,7 @@ export default function Envios() {
     <div>
       <PageHeader
         title="Envios"
-        subtitle="Histórico de mensagens disparadas pelo n8n via Evolution."
+        subtitle="Histórico de cobranças enviadas pra seus clientes no WhatsApp."
         actions={
           <Button variant="secondary" onClick={verifyNow} disabled={verifying || !session}>
             {verifying ? (
@@ -422,7 +422,7 @@ export default function Envios() {
             loading
               ? 'Buscando registros…'
               : rows.length === 0
-                ? 'Quando o n8n disparar pela Evolution, os envios aparecem aqui.'
+                ? 'Quando o sistema enviar uma cobrança, ela aparece aqui.'
                 : 'Tente outro filtro ou limpe a busca.'
           }
         />

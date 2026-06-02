@@ -389,7 +389,7 @@ export default function Usuarios() {
             </Field>
             <Field
               label="Tabela de conversas"
-              hint="Nome da tabela no Supabase onde o n8n grava as mensagens (in/out) deste usuário."
+              hint="Nome da tabela onde o sistema guarda o histórico de conversas deste usuário."
             >
               <Input
                 autoComplete="off"
