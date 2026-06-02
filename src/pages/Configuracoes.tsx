@@ -189,15 +189,38 @@ export default function Configuracoes() {
             </div>
           </div>
 
-          <Field label="Texto da mensagem">
-            <Textarea
-              rows={5}
-              value={form.mensagem_template}
-              onChange={(e) => update('mensagem_template', e.target.value)}
-              placeholder={DEFAULT_TEMPLATE}
-            />
-          </Field>
+          {/* Editor à esquerda, pré-visualização à direita */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="Texto da mensagem">
+              <Textarea
+                rows={8}
+                value={form.mensagem_template}
+                onChange={(e) => update('mensagem_template', e.target.value)}
+                placeholder={DEFAULT_TEMPLATE}
+                className="h-full"
+              />
+            </Field>
 
+            <div>
+              <div className="text-xs text-fg-2 mb-1.5">Pré-visualização</div>
+              <div className="rounded-lg bg-bg border border-border p-3 min-h-[160px] flex">
+                {/* Balão estilo WhatsApp */}
+                <div className="bg-emerald-100 text-fg rounded-lg rounded-tl-sm px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-sm max-w-full">
+                  {(form.mensagem_template || DEFAULT_TEMPLATE)
+                    .replace(/\{cliente\}/g, 'Maria Silva')
+                    .replace(/\{cobranca\}/g, 'Mensalidade Maio/2026')
+                    .replace(/\{descricao\}/g, 'Plano premium — referente a maio')
+                    .replace(/\{valor\}/g, 'R$ 199,90')
+                    .replace(/\{vencimento\}/g, '28/05/2026')}
+                </div>
+              </div>
+              <div className="text-[10px] text-fg-4 mt-1.5">
+                Exemplo com Maria Silva · R$ 199,90 · 28/05/2026
+              </div>
+            </div>
+          </div>
+
+          {/* Chips de marcadores abaixo */}
           <div>
             <div className="text-[11px] font-medium text-fg-2 mb-2">
               Clique pra inserir um marcador
@@ -221,21 +244,6 @@ export default function Configuracoes() {
                   <span className="text-fg-4">{p.d}</span>
                 </button>
               ))}
-            </div>
-          </div>
-
-          {/* Preview de como a mensagem fica */}
-          <div className="rounded-lg border border-border bg-bg p-3 space-y-1.5">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-fg-3">
-              Pré-visualização (exemplo)
-            </div>
-            <div className="text-sm text-fg leading-relaxed whitespace-pre-wrap">
-              {(form.mensagem_template || DEFAULT_TEMPLATE)
-                .replace(/\{cliente\}/g, 'Maria Silva')
-                .replace(/\{cobranca\}/g, 'Mensalidade Maio/2026')
-                .replace(/\{descricao\}/g, 'Plano premium — referente a maio')
-                .replace(/\{valor\}/g, 'R$ 199,90')
-                .replace(/\{vencimento\}/g, '28/05/2026')}
             </div>
           </div>
         </div>
