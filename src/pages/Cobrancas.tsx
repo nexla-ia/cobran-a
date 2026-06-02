@@ -312,6 +312,7 @@ export default function Cobrancas() {
         user_id: session?.user?.id ?? null,
         evolution_instancia: profile?.evolution_instancia ?? null,
         evolution_api_key: profile?.evolution_api_key ?? null,
+        mensagem_template: profile?.mensagem_template ?? null,
       },
       itens,
     })

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Settings, Loader2, Save } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { Button, Field, Input, PageHeader } from '@/components/ui'
+import { Button, Field, Input, PageHeader, Textarea } from '@/components/ui'
 import { toast } from '@/lib/dialogs'
 
 type Form = {
@@ -14,7 +14,11 @@ type Form = {
   dias_semana: number[]
   cancelar_automatico: boolean
   dias_ate_cancelar: number
+  mensagem_template: string
 }
+
+const DEFAULT_TEMPLATE =
+  'Olá {cliente}! Lembrete da cobrança "{cobranca}" no valor de {valor}, com vencimento em {vencimento}. Por favor, regularize ou nos avise se já efetuou o pagamento.'
 
 const empty: Form = {
   automacao_ativa: false,
@@ -25,6 +29,7 @@ const empty: Form = {
   dias_semana: [1, 2, 3, 4, 5],
   cancelar_automatico: false,
   dias_ate_cancelar: 30,
+  mensagem_template: DEFAULT_TEMPLATE,
 }
 
 const diasOptions = [
@@ -79,6 +84,7 @@ export default function Configuracoes() {
       dias_semana: profile.dias_semana ?? [1, 2, 3, 4, 5],
       cancelar_automatico: profile.cancelar_automatico ?? false,
       dias_ate_cancelar: profile.dias_ate_cancelar ?? 30,
+      mensagem_template: profile.mensagem_template ?? DEFAULT_TEMPLATE,
     })
     setDirty(false)
   }, [profile])
@@ -113,6 +119,7 @@ export default function Configuracoes() {
           dias_semana: form.dias_semana,
           cancelar_automatico: form.cancelar_automatico,
           dias_ate_cancelar: form.dias_ate_cancelar,
+          mensagem_template: form.mensagem_template.trim() || null,
         })
         .eq('id', session.user.id)
       if (error) {
@@ -169,8 +176,57 @@ export default function Configuracoes() {
           </label>
         </div>
 
+        {/* Modelo de mensagem */}
+        <div className="space-y-4 pt-4 border-t border-border">
+          <div>
+            <div className="text-xs font-medium text-fg-2 uppercase tracking-wide">
+              Modelo de mensagem
+            </div>
+            <div className="text-xs text-fg-3 mt-1">
+              Texto usado pelo n8n pra montar cada cobrança no WhatsApp.
+            </div>
+          </div>
+          <Field
+            label="Modelo / exemplo"
+            hint="Use os placeholders abaixo. O n8n substitui pelos dados de cada cobrança no momento do envio."
+          >
+            <Textarea
+              rows={5}
+              value={form.mensagem_template}
+              onChange={(e) => update('mensagem_template', e.target.value)}
+              placeholder={DEFAULT_TEMPLATE}
+              className="font-mono text-xs"
+            />
+          </Field>
+          <div className="text-[11px] text-fg-3 leading-relaxed">
+            <span className="font-medium text-fg-2">Placeholders disponíveis:</span>{' '}
+            {[
+              { k: '{cliente}', d: 'nome do cliente' },
+              { k: '{cobranca}', d: 'título da cobrança' },
+              { k: '{descricao}', d: 'descrição completa' },
+              { k: '{valor}', d: 'R$ 199,90' },
+              { k: '{vencimento}', d: '28/05/2026' },
+            ].map((p, i) => (
+              <span key={p.k}>
+                <button
+                  type="button"
+                  onClick={() => update('mensagem_template', form.mensagem_template + ' ' + p.k)}
+                  className="font-mono bg-hover px-1 py-0.5 rounded text-fg-2 hover:bg-fg hover:text-surface transition"
+                  title={p.d}
+                >
+                  {p.k}
+                </button>
+                {i < 4 && ' '}
+              </span>
+            ))}
+            <div className="mt-2">
+              Clique num placeholder pra inserir no modelo.
+            </div>
+          </div>
+        </div>
+
         {/* Frequência */}
-        <div className="space-y-4">
+        <div className="space-y-4 pt-4 border-t border-border">
           <div className="text-xs font-medium text-fg-2 uppercase tracking-wide">Frequência</div>
           <Field label="Envios por dia" hint="Máximo de disparos diários por cobrança.">
             <Input

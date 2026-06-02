@@ -28,6 +28,7 @@ export type Profile = {
   horario_fim: string
   dias_semana: number[]
   cancelar_automatico: boolean
+  mensagem_template: string | null
   created_at: string
 }
 
