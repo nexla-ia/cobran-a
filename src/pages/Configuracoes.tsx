@@ -1,9 +1,35 @@
-import { useEffect, useState } from 'react'
-import { Settings, Loader2, Save } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Settings, Loader2, Save, Plus, CheckCheck, AlertCircle, Sparkles } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
-import { Button, Field, Input, PageHeader, Textarea } from '@/components/ui'
+import { Button, Field, Input, PageHeader } from '@/components/ui'
 import { toast } from '@/lib/dialogs'
+
+const MARCADORES = [
+  { k: '{cliente}', d: 'Nome do cliente', sample: 'Maria Silva' },
+  { k: '{cobranca}', d: 'Título da cobrança', sample: 'Mensalidade Maio/2026' },
+  { k: '{descricao}', d: 'Descrição completa', sample: 'Plano premium — referente a maio' },
+  { k: '{valor}', d: 'Valor (ex: R$ 199,90)', sample: 'R$ 199,90' },
+  { k: '{vencimento}', d: 'Data (ex: 28/05/2026)', sample: '28/05/2026' },
+] as const
+
+const PRESETS: Array<{ label: string; text: string }> = [
+  {
+    label: 'Lembrete amigável',
+    text:
+      'Olá {cliente}! 👋\n\nPassando só pra lembrar da cobrança "{cobranca}" no valor de {valor}, com vencimento em {vencimento}.\n\nQualquer dúvida estou à disposição!',
+  },
+  {
+    label: 'Formal',
+    text:
+      'Prezado(a) {cliente},\n\nInformamos que a cobrança "{cobranca}" no valor de {valor} possui vencimento em {vencimento}.\n\nPedimos a gentileza de regularizar ou nos contatar caso o pagamento já tenha sido efetuado.',
+  },
+  {
+    label: 'Última chance',
+    text:
+      '{cliente}, sua cobrança "{cobranca}" de {valor} venceu em {vencimento} e ainda está pendente.\n\nPor favor, regularize hoje pra evitarmos o cancelamento. Se já pagou, mande o comprovante!',
+  },
+]
 
 type Form = {
   automacao_ativa: boolean
@@ -72,6 +98,47 @@ export default function Configuracoes() {
   const [form, setForm] = useState<Form>(empty)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  function insertMarcador(marker: string) {
+    const ta = textareaRef.current
+    const current = form.mensagem_template
+    if (!ta) {
+      update('mensagem_template', current + (current.endsWith(' ') || !current ? '' : ' ') + marker)
+      return
+    }
+    const start = ta.selectionStart ?? current.length
+    const end = ta.selectionEnd ?? current.length
+    const before = current.slice(0, start)
+    const after = current.slice(end)
+    const needsSpaceBefore = before && !/\s$/.test(before)
+    const insertion = (needsSpaceBefore ? ' ' : '') + marker
+    const newValue = before + insertion + after
+    update('mensagem_template', newValue)
+    requestAnimationFrame(() => {
+      if (!textareaRef.current) return
+      textareaRef.current.focus()
+      const pos = (before + insertion).length
+      textareaRef.current.setSelectionRange(pos, pos)
+    })
+  }
+
+  const previewText = useMemo(() => {
+    const base = form.mensagem_template || DEFAULT_TEMPLATE
+    return MARCADORES.reduce(
+      (txt, m) => txt.replaceAll(m.k, m.sample),
+      base,
+    )
+  }, [form.mensagem_template])
+
+  const previewTime = useMemo(() => {
+    const d = new Date()
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }, [])
+
+  const semMarcadores = !MARCADORES.some((m) =>
+    form.mensagem_template.includes(m.k),
+  )
 
   useEffect(() => {
     if (!profile) return
@@ -176,74 +243,135 @@ export default function Configuracoes() {
           </label>
         </div>
 
-        {/* Modelo de mensagem */}
+        {/* Mensagem de cobrança */}
         <div className="space-y-4 pt-4 border-t border-border">
           <div>
             <div className="text-xs font-medium text-fg-2 uppercase tracking-wide">
               Mensagem de cobrança
             </div>
             <div className="text-xs text-fg-3 mt-1">
-              Esta é a mensagem que o cliente vai receber no WhatsApp. Use os marcadores
-              abaixo (entre chaves) — eles são trocados automaticamente pelos dados de cada
-              cobrança no momento do envio.
+              Escreva o texto que o cliente vai receber no WhatsApp. Os marcadores entre chaves
+              (ex.: <code className="font-mono bg-hover px-1 rounded">{'{cliente}'}</code>) são
+              trocados automaticamente pelos dados de cada cobrança.
             </div>
           </div>
 
-          {/* Editor à esquerda, pré-visualização à direita */}
+          {/* Modelos prontos */}
+          <div className="flex items-center flex-wrap gap-1.5">
+            <span className="inline-flex items-center gap-1 text-[10px] text-fg-4 mr-1">
+              <Sparkles className="size-3" />
+              Modelos prontos:
+            </span>
+            {PRESETS.map((p) => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => update('mensagem_template', p.text)}
+                className="text-[11px] px-2 h-6 rounded-full border border-border bg-surface hover:border-fg hover:bg-hover text-fg-2 transition"
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Editor (esquerda) + Preview WhatsApp (direita) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Texto da mensagem">
-              <Textarea
+            {/* EDITOR */}
+            <div className="flex flex-col">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs text-fg-2">Texto da mensagem</label>
+                <span className="text-[10px] text-fg-4 tabular">
+                  {form.mensagem_template.length} caractere(s)
+                </span>
+              </div>
+
+              {/* Chips de marcadores logo acima do textarea */}
+              <div className="flex items-center flex-wrap gap-1 mb-1.5 px-2 py-1.5 rounded-md border border-dashed border-border bg-bg/60">
+                <span className="text-[10px] text-fg-4 mr-1">Inserir:</span>
+                {MARCADORES.map((m) => (
+                  <button
+                    key={m.k}
+                    type="button"
+                    onClick={() => insertMarcador(m.k)}
+                    title={m.d}
+                    className="inline-flex items-center gap-1 px-1.5 h-6 rounded bg-surface border border-border hover:border-fg-3 hover:bg-hover transition text-[11px]"
+                  >
+                    <Plus className="size-2.5 text-fg-4" />
+                    <span className="font-mono text-fg-2">
+                      {m.k.replace(/[{}]/g, '')}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                ref={textareaRef}
                 rows={8}
                 value={form.mensagem_template}
                 onChange={(e) => update('mensagem_template', e.target.value)}
                 placeholder={DEFAULT_TEMPLATE}
-                className="h-full"
+                spellCheck={false}
+                className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-fg outline-none transition-colors focus:border-fg placeholder:text-fg-4 resize-y min-h-[160px] leading-relaxed flex-1"
               />
-            </Field>
 
+              {semMarcadores && form.mensagem_template.trim().length > 0 && (
+                <div className="mt-2 flex items-start gap-1.5 text-[11px] text-warn">
+                  <AlertCircle className="size-3.5 mt-px shrink-0" />
+                  <span>
+                    Sem marcadores, todos os clientes vão receber o mesmo texto. Use{' '}
+                    <code className="font-mono">{'{cliente}'}</code> e outros pra personalizar.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* PREVIEW estilo WhatsApp */}
             <div>
-              <div className="text-xs text-fg-2 mb-1.5">Pré-visualização</div>
-              <div className="rounded-lg bg-bg border border-border p-3 min-h-[160px] flex">
-                {/* Balão estilo WhatsApp */}
-                <div className="bg-emerald-100 text-fg rounded-lg rounded-tl-sm px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap shadow-sm max-w-full">
-                  {(form.mensagem_template || DEFAULT_TEMPLATE)
-                    .replace(/\{cliente\}/g, 'Maria Silva')
-                    .replace(/\{cobranca\}/g, 'Mensalidade Maio/2026')
-                    .replace(/\{descricao\}/g, 'Plano premium — referente a maio')
-                    .replace(/\{valor\}/g, 'R$ 199,90')
-                    .replace(/\{vencimento\}/g, '28/05/2026')}
+              <div className="text-xs text-fg-2 mb-1.5">Pré-visualização no WhatsApp</div>
+              <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
+                {/* Header */}
+                <div className="bg-emerald-700 text-white px-3 h-12 flex items-center gap-2.5">
+                  <div className="size-8 rounded-full bg-white/15 grid place-items-center text-xs font-semibold">
+                    M
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] font-medium leading-tight">Maria Silva</div>
+                    <div className="text-[10px] opacity-80 leading-tight">online</div>
+                  </div>
+                </div>
+
+                {/* Área de chat */}
+                <div
+                  className="px-3 pt-6 pb-3 min-h-[220px] flex flex-col justify-end"
+                  style={{
+                    backgroundColor: '#efeae2',
+                    backgroundImage:
+                      'radial-gradient(circle at 1px 1px, rgba(0,0,0,0.05) 1px, transparent 0)',
+                    backgroundSize: '18px 18px',
+                  }}
+                >
+                  <div className="ml-auto max-w-[85%]">
+                    <div
+                      className="bg-[#d9fdd3] text-fg rounded-lg rounded-tr-sm px-3 py-1.5 shadow-sm relative"
+                      style={{
+                        boxShadow: '0 1px 0.5px rgba(0,0,0,0.13)',
+                      }}
+                    >
+                      <div className="text-[13px] leading-relaxed whitespace-pre-wrap">
+                        {previewText}
+                      </div>
+                      <div className="text-[10px] text-fg-3 mt-1 flex items-center justify-end gap-0.5 tabular">
+                        <span>{previewTime}</span>
+                        <CheckCheck className="size-3 text-sky-500" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="text-[10px] text-fg-4 mt-1.5">
-                Exemplo com Maria Silva · R$ 199,90 · 28/05/2026
+                Exemplo · Maria Silva · {MARCADORES.find((m) => m.k === '{valor}')?.sample} ·{' '}
+                {MARCADORES.find((m) => m.k === '{vencimento}')?.sample}
               </div>
-            </div>
-          </div>
-
-          {/* Chips de marcadores abaixo */}
-          <div>
-            <div className="text-[11px] font-medium text-fg-2 mb-2">
-              Clique pra inserir um marcador
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { k: '{cliente}', d: 'Nome do cliente' },
-                { k: '{cobranca}', d: 'Título da cobrança' },
-                { k: '{descricao}', d: 'Descrição completa' },
-                { k: '{valor}', d: 'Valor (ex: R$ 199,90)' },
-                { k: '{vencimento}', d: 'Data (ex: 28/05/2026)' },
-              ].map((p) => (
-                <button
-                  key={p.k}
-                  type="button"
-                  onClick={() => update('mensagem_template', form.mensagem_template + ' ' + p.k)}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-bg hover:border-fg hover:bg-hover transition text-[11px]"
-                  title={p.d}
-                >
-                  <span className="font-mono text-fg-2">{p.k}</span>
-                  <span className="text-fg-4">{p.d}</span>
-                </button>
-              ))}
             </div>
           </div>
         </div>
