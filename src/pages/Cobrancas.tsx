@@ -258,9 +258,35 @@ export default function Cobrancas() {
 
   async function dispatchItems(ids: string[]) {
     if (ids.length === 0) return
+
+    // Bloqueia cobranças pagas / canceladas
+    const sendable: string[] = []
+    let bloqueadas = 0
+    for (const id of ids) {
+      const c = rows.find((r) => r.id === id)
+      if (!c) continue
+      if (c.status === 'pago' || c.status === 'cancelado') {
+        bloqueadas++
+        continue
+      }
+      sendable.push(id)
+    }
+
+    if (sendable.length === 0) {
+      toast.error(
+        bloqueadas > 0
+          ? 'Nenhuma cobrança pode ser enviada: todas estão pagas ou canceladas.'
+          : 'Nenhuma cobrança disponível pra envio.',
+      )
+      return
+    }
+
     const ok = await confirmDialog({
-      title: `Enviar ${ids.length} cobrança(s)?`,
-      message: 'O sistema vai enviar a cobrança para o WhatsApp do cliente.',
+      title: `Enviar ${sendable.length} cobrança(s)?`,
+      message:
+        bloqueadas > 0
+          ? `O sistema vai enviar ${sendable.length} cobrança(s) pelo WhatsApp. ${bloqueadas} foram ignoradas (pagas ou canceladas).`
+          : 'O sistema vai enviar a cobrança para o WhatsApp do cliente.',
       confirmLabel: 'Enviar',
     })
     if (!ok) return
@@ -271,7 +297,7 @@ export default function Cobrancas() {
       string,
       { cliente: Cliente; cobrancas: Cobranca[] }
     >()
-    for (const id of ids) {
+    for (const id of sendable) {
       const c = rows.find((r) => r.id === id)
       if (!c) continue
       const cli = clienteMap.get(c.cliente_id)
@@ -716,14 +742,23 @@ export default function Cobrancas() {
             <thead>
               <tr className="border-b border-border bg-bg">
                 <th className="pl-4 pr-2 py-2.5 w-10">
-                  <Checkbox
-                    checked={filtered.length > 0 && selected.size === filtered.length}
-                    indeterminate={selected.size > 0 && selected.size < filtered.length}
-                    onChange={(v) =>
-                      setSelected(v ? new Set(filtered.map((r) => r.id)) : new Set())
-                    }
-                    aria-label="Selecionar todas"
-                  />
+                  {(() => {
+                    const selectable = filtered.filter(
+                      (r) => r.status !== 'pago' && r.status !== 'cancelado',
+                    )
+                    return (
+                      <Checkbox
+                        checked={selectable.length > 0 && selected.size === selectable.length}
+                        indeterminate={
+                          selected.size > 0 && selected.size < selectable.length
+                        }
+                        onChange={(v) =>
+                          setSelected(v ? new Set(selectable.map((r) => r.id)) : new Set())
+                        }
+                        aria-label="Selecionar todas (exceto pagas/canceladas)"
+                      />
+                    )
+                  })()}
                 </th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Cliente</th>
                 <th className="px-4 py-2.5 text-left text-xs font-medium text-fg-3">Nome</th>
@@ -738,6 +773,7 @@ export default function Cobrancas() {
               {filtered.map((r) => {
                 const cli = clienteMap.get(r.cliente_id)
                 const isSelected = selected.has(r.id)
+                const naoEnviavel = r.status === 'pago' || r.status === 'cancelado'
                 return (
                   <tr
                     key={r.id}
@@ -752,9 +788,18 @@ export default function Cobrancas() {
                   >
                     <td className="pl-4 pr-2 py-3" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
-                        checked={isSelected}
-                        onChange={() => toggleOne(r.id)}
-                        aria-label="Selecionar"
+                        checked={!naoEnviavel && isSelected}
+                        onChange={() => !naoEnviavel && toggleOne(r.id)}
+                        disabled={naoEnviavel}
+                        aria-label={naoEnviavel ? 'Não enviável' : 'Selecionar'}
+                        title={
+                          r.status === 'pago'
+                            ? 'Cobrança paga não pode ser enviada'
+                            : r.status === 'cancelado'
+                              ? 'Cobrança cancelada não pode ser enviada'
+                              : ''
+                        }
+                        className={naoEnviavel ? 'opacity-40 cursor-not-allowed' : ''}
                       />
                     </td>
                     <td className="px-4 py-3">
