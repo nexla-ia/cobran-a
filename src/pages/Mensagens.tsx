@@ -308,7 +308,7 @@ export default function Mensagens() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabela])
+  }, [tabelas.join('|')])
 
   // Realtime na tabela apontada pelo profile + mensagens_atendente.
   // Obs.: Realtime do Supabase só funciona em TABELAS base — views ficam mudas.
