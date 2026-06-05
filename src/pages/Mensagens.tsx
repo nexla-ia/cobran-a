@@ -201,13 +201,33 @@ export default function Mensagens() {
         setError(`Nenhuma das tabelas foi encontrada: ${erros.join(' · ')}`)
       }
 
-      setClientes(c.data ?? [])
+      const clientesList = c.data ?? []
+      setClientes(clientesList)
+
+      // Conjunto de telefones que pertencem a ESTA instância:
+      //   - telefones dos clientes do user (RLS já filtrou)
+      //   - números que apareceram em mensagens_atendente da instância
+      // Tabelas LangChain não têm coluna 'instancia', então usamos esse conjunto
+      // pra filtrar — evita misturar conversas de outros tenants que dividem
+      // a mesma tabela genérica de cobrança.
+      const allowedPhones = new Set<string>()
+      for (const cli of clientesList) {
+        for (const k of phoneKeys(cli.telefone)) allowedPhones.add(k)
+      }
+      for (const row of (atd.data as Array<Record<string, unknown>> | null) ?? []) {
+        const num = String((row as { numero?: string }).numero ?? '').split('@')[0]
+        for (const k of phoneKeys(num)) allowedPhones.add(k)
+      }
 
       const aiRows = linhasAI
-      const aiNormalized = aiRows.map((r, i) => ({
-        ...normalizeRow(r, i),
-        source: 'ai' as const,
-      }))
+      const aiNormalized = aiRows
+        .map((r, i) => ({ ...normalizeRow(r, i), source: 'ai' as const }))
+        .filter((m) => {
+          // Sem telefone reconhecível = descarta
+          if (!m.telefone) return false
+          // Mantém se o telefone está no conjunto da instância
+          return phoneKeys(m.telefone).some((k) => allowedPhones.has(k))
+        })
 
       const atdRows = (atd.data as Record<string, unknown>[]) ?? []
       // Filtra fora grupos do WhatsApp (@g.us). Só mantém 1-on-1 (@s.whatsapp.net
