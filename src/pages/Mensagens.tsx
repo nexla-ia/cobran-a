@@ -85,6 +85,47 @@ function formatTime(iso: string) {
   }
 }
 
+// Detecta o MIME type a partir dos primeiros caracteres do base64.
+// WhatsApp envia stickers (webp), imagens (jpeg/png), áudios (ogg/opus
+// pra voice note, mp3), vídeos (mp4) e PDFs/arquivos.
+function detectMime(base64: string): string {
+  // Aceita data URIs já com mime declarado
+  const m = base64.match(/^data:([^;]+);base64,/)
+  if (m) return m[1]
+
+  const p = base64.slice(0, 24)
+  // Imagens
+  if (p.startsWith('/9j/')) return 'image/jpeg'
+  if (p.startsWith('iVBORw0KGgo')) return 'image/png'
+  if (p.startsWith('R0lGODlh') || p.startsWith('R0lGODdh')) return 'image/gif'
+  // WhatsApp sticker é webp (header RIFF...WEBP)
+  if (p.startsWith('UklGR')) return 'image/webp'
+  // Documentos
+  if (p.startsWith('JVBERi')) return 'application/pdf'
+  if (p.startsWith('UEsDB')) return 'application/zip' // ou docx/xlsx (zip-based)
+  // Áudio
+  if (p.startsWith('T2dn') || p.startsWith('Ck9n')) return 'audio/ogg' // OggS
+  if (p.startsWith('SUQz')) return 'audio/mpeg' // ID3 (mp3)
+  if (p.startsWith('//uQ') || p.startsWith('//tQ') || p.startsWith('/+M')) return 'audio/mpeg'
+  // Vídeo MP4 (ftyp aparece depois dos 4 primeiros bytes; base64 marca "ftyp")
+  if (p.includes('ftyp') || p.includes('ZnR5c')) return 'video/mp4'
+  return 'application/octet-stream'
+}
+
+function mimeToKind(mime: string): 'image' | 'sticker' | 'audio' | 'video' | 'pdf' | 'file' {
+  if (mime === 'image/webp') return 'sticker'
+  if (mime.startsWith('image/')) return 'image'
+  if (mime.startsWith('audio/')) return 'audio'
+  if (mime.startsWith('video/')) return 'video'
+  if (mime === 'application/pdf') return 'pdf'
+  return 'file'
+}
+
+function dataUriFromBase64(base64: string, mime: string): string {
+  if (base64.startsWith('data:')) return base64
+  return `data:${mime};base64,${base64}`
+}
+
 function formatRelativeDay(iso: string) {
   try {
     const d = new Date(iso)
@@ -300,7 +341,8 @@ export default function Mensagens() {
           source: 'atendente',
           atendente_nome: (r.nome as string | null) ?? null,
           base64: (r.base64 as string | null) ?? null,
-          midia_type: (r.type as string | null) ?? null,
+          // midia_type fica null aqui — o renderer detecta pelo base64 direto
+          midia_type: null,
         }
       })
 
@@ -676,22 +718,57 @@ export default function Mensagens() {
                                   {m.atendente_nome}
                                 </div>
                               )}
-                              {m.base64 &&
-                              (m.midia_type === 'image' || m.midia_type === 'imagem') ? (
-                                <img
-                                  src={
-                                    m.base64.startsWith('data:')
-                                      ? m.base64
-                                      : `data:image/jpeg;base64,${m.base64}`
-                                  }
-                                  alt="anexo"
-                                  className="rounded-md max-w-full mb-1"
-                                />
-                              ) : m.base64 ? (
-                                <div className="text-[11px] opacity-80 italic mb-1">
-                                  [anexo {m.midia_type ?? 'mídia'}]
-                                </div>
-                              ) : null}
+                              {m.base64 && (() => {
+                                const mime = detectMime(m.base64)
+                                const kind = mimeToKind(mime)
+                                const src = dataUriFromBase64(m.base64, mime)
+                                if (kind === 'image' || kind === 'sticker') {
+                                  return (
+                                    <img
+                                      src={src}
+                                      alt={kind === 'sticker' ? 'figurinha' : 'imagem'}
+                                      className={`mb-1 ${
+                                        kind === 'sticker'
+                                          ? 'max-w-[140px] max-h-[140px]'
+                                          : 'rounded-md max-w-full max-h-[320px]'
+                                      }`}
+                                    />
+                                  )
+                                }
+                                if (kind === 'audio') {
+                                  return (
+                                    <audio
+                                      controls
+                                      src={src}
+                                      className="mb-1 max-w-full"
+                                      style={{ height: 36 }}
+                                    />
+                                  )
+                                }
+                                if (kind === 'video') {
+                                  return (
+                                    <video
+                                      controls
+                                      src={src}
+                                      className="mb-1 rounded-md max-w-full max-h-[320px]"
+                                    />
+                                  )
+                                }
+                                // PDF ou outro arquivo: link de download
+                                return (
+                                  <a
+                                    href={src}
+                                    download={kind === 'pdf' ? 'documento.pdf' : 'arquivo'}
+                                    className={`mb-1 inline-flex items-center gap-2 px-2 py-1.5 rounded border text-xs ${
+                                      isOut
+                                        ? 'border-white/30 bg-white/10 text-white hover:bg-white/20'
+                                        : 'border-border bg-bg text-fg-2 hover:bg-hover'
+                                    } transition`}
+                                  >
+                                    📎 {kind === 'pdf' ? 'Documento PDF' : 'Arquivo anexo'}
+                                  </a>
+                                )
+                              })()}
                               <div className="whitespace-pre-wrap break-words">
                                 {m.conteudo ?? <span className="italic opacity-60">[sem texto]</span>}
                               </div>
