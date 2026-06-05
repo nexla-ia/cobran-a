@@ -358,12 +358,13 @@ export default function Mensagens() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedTabelas.join('|')])
 
-  // Polling de 8s como fallback (essencial quando conversa_tabela é uma view)
+  // Polling de fallback (essencial quando a tabela não está na publication
+  // do Supabase Realtime, ou quando é uma view).
   useEffect(() => {
-    if (!isSupabaseConfigured || tabelas.length === 0) return
+    if (!isSupabaseConfigured) return
     const handle = window.setInterval(() => {
       load()
-    }, 8000)
+    }, 3000)
     return () => window.clearInterval(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabelas.join('|')])
