@@ -71,6 +71,8 @@ export type Cobranca = {
   total_envios: number
   envios_hoje: number
   ultimo_envio_em: string | null
+  // Mensalidade: ao virar o mês, status reseta pra 'pendente' e vencimento avança 1 mês
+  mensalidade: boolean
   created_at: string
 }
 
@@ -138,6 +140,7 @@ export type Database = {
             | 'envios_por_dia_ovr'
             | 'intervalo_envios_horas_ovr'
             | 'automacao_ativa_ovr'
+            | 'mensalidade'
           >
         > &
           Omit<
@@ -152,6 +155,7 @@ export type Database = {
             | 'envios_por_dia_ovr'
             | 'intervalo_envios_horas_ovr'
             | 'automacao_ativa_ovr'
+            | 'mensalidade'
           >,
         Partial<Omit<Cobranca, 'id' | 'created_at'>>
       >

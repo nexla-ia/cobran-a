@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, FileDown, FileUp, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search, Download } from 'lucide-react'
+import { Plus, Trash2, FileDown, FileUp, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search, Download, Repeat } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase, isSupabaseConfigured, syncOverdueCobrancas } from '@/lib/supabase'
 import type { Cliente, Cobranca, CobrancaStatus } from '@/types/db'
@@ -27,6 +27,7 @@ type Form = {
   valor: string
   vencimento: string
   status: CobrancaStatus
+  mensalidade: boolean
 }
 
 const empty: Form = {
@@ -36,6 +37,7 @@ const empty: Form = {
   valor: '',
   vencimento: '',
   status: 'pendente',
+  mensalidade: false,
 }
 
 const statusLabel: Record<CobrancaStatus, string> = {
@@ -73,6 +75,7 @@ function cobrancaToForm(c: Cobranca): Form {
     valor: formatBRLFromNumber(Number(c.valor)),
     vencimento: c.vencimento,
     status: c.status,
+    mensalidade: c.mensalidade ?? false,
   }
 }
 
@@ -185,6 +188,7 @@ export default function Cobrancas() {
         form.status === 'pago'
           ? editing?.pago_em ?? new Date().toISOString().slice(0, 10)
           : null,
+      mensalidade: form.mensalidade,
     }
     const { error } = editing
       ? await supabase.from('cobrancas').update(payload).eq('id', editing.id)
@@ -807,7 +811,17 @@ export default function Cobrancas() {
                       <div className="text-xs text-fg-4 font-mono tabular">{cli?.documento ?? ''}</div>
                     </td>
                     <td className="px-4 py-3 text-fg">
-                      {r.nome ?? <span className="text-fg-4">—</span>}
+                      <div className="flex items-center gap-1.5">
+                        {r.mensalidade && (
+                          <span
+                            className="inline-flex items-center text-fg-3"
+                            title="Mensalidade — renova automaticamente a cada mês"
+                          >
+                            <Repeat className="size-3" />
+                          </span>
+                        )}
+                        <span>{r.nome ?? <span className="text-fg-4">—</span>}</span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-fg-2">{r.descricao}</td>
                     <td className="px-4 py-3 text-right font-medium tabular text-fg">
@@ -948,6 +962,22 @@ export default function Cobrancas() {
               />
             </Field>
           </div>
+
+          <label className="flex items-start gap-2.5 cursor-pointer rounded-md border border-border bg-bg px-3 py-2.5 hover:border-fg-4 transition">
+            <input
+              type="checkbox"
+              checked={form.mensalidade}
+              onChange={(e) => setForm({ ...form, mensalidade: e.target.checked })}
+              className="mt-0.5 accent-fg"
+            />
+            <span className="text-sm">
+              <span className="text-fg font-medium">É uma mensalidade</span>
+              <span className="block text-xs text-fg-3 mt-0.5">
+                Quando passar do vencimento, vira automaticamente <code>pendente</code> e o
+                vencimento avança 1 mês.
+              </span>
+            </span>
+          </label>
 
           {editing && (
             <Field label="Status">
