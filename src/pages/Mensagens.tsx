@@ -789,9 +789,11 @@ export default function Mensagens() {
                                   </a>
                                 )
                               })()}
-                              <div className="whitespace-pre-wrap break-words">
-                                {m.conteudo ?? <span className="italic opacity-60">[sem texto]</span>}
-                              </div>
+                              {m.conteudo && m.conteudo.trim() && (
+                                <div className="whitespace-pre-wrap break-words">
+                                  {m.conteudo}
+                                </div>
+                              )}
                               <div
                                 className={`text-[10px] mt-1 tabular ${
                                   isOut ? 'text-white/70 text-right' : 'text-fg-4'
