@@ -736,32 +736,48 @@ export default function Mensagens() {
                                   )
                                 }
                                 if (kind === 'audio') {
-                                  // WhatsApp voice = ogg/opus → precisa do hint
-                                  const audioType =
-                                    mime === 'audio/ogg' ? 'audio/ogg; codecs=opus' : mime
+                                  // WhatsApp voice = ogg/opus → tenta opus, depois mp3, depois webm
                                   return (
-                                    <div className="mb-1 flex items-center gap-2">
-                                      <audio
-                                        controls
-                                        preload="metadata"
-                                        className="max-w-full"
-                                        style={{ height: 36 }}
+                                    <div className="mb-1 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <audio
+                                          controls
+                                          preload="metadata"
+                                          className="max-w-full"
+                                          style={{ height: 36 }}
+                                        >
+                                          <source src={src} type="audio/ogg; codecs=opus" />
+                                          <source src={src} type="audio/webm; codecs=opus" />
+                                          <source src={src} type="audio/mpeg" />
+                                          <source src={src} type="audio/wav" />
+                                        </audio>
+                                        <a
+                                          href={src}
+                                          download={
+                                            mime.includes('ogg')
+                                              ? 'audio.ogg'
+                                              : mime.includes('mpeg')
+                                                ? 'audio.mp3'
+                                                : 'audio.bin'
+                                          }
+                                          title="Baixar áudio"
+                                          className={`size-7 grid place-items-center rounded text-[11px] shrink-0 ${
+                                            isOut
+                                              ? 'bg-white/10 text-white hover:bg-white/20'
+                                              : 'bg-bg text-fg-3 hover:text-fg hover:bg-hover border border-border'
+                                          } transition`}
+                                        >
+                                          ⬇
+                                        </a>
+                                      </div>
+                                      <div
+                                        className={`text-[10px] ${
+                                          isOut ? 'text-white/60' : 'text-fg-4'
+                                        }`}
                                       >
-                                        <source src={src} type={audioType} />
-                                        <source src={src} type="audio/mpeg" />
-                                      </audio>
-                                      <a
-                                        href={src}
-                                        download={mime.includes('ogg') ? 'audio.ogg' : 'audio.mp3'}
-                                        title="Baixar áudio"
-                                        className={`size-7 grid place-items-center rounded text-[11px] shrink-0 ${
-                                          isOut
-                                            ? 'bg-white/10 text-white hover:bg-white/20'
-                                            : 'bg-bg text-fg-3 hover:text-fg hover:bg-hover border border-border'
-                                        } transition`}
-                                      >
-                                        ⬇
-                                      </a>
+                                        Não tocou? Tente baixar com ⬇ — talvez o áudio precise
+                                        ser decriptado no n8n primeiro.
+                                      </div>
                                     </div>
                                   )
                                 }
