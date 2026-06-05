@@ -478,10 +478,10 @@ export default function Mensagens() {
         title="Mensagens"
         subtitle={
           resolvedTabelas.length
-            ? `Lendo de ${resolvedTabelas.map((t) => `"${t}"`).join(' + ')}${
+            ? `Lendo de ${resolvedTabelas.map((t) => `"${t}"`).join(' + ')} + mensagens_atendente${
                 instancia ? ` · instância ${instancia}` : ''
               }`
-            : 'Conversas em tempo real por cliente.'
+            : `Lendo de mensagens_atendente${instancia ? ` · instância ${instancia}` : ''}`
         }
       />
 
