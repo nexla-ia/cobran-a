@@ -112,10 +112,16 @@ type Conversa = {
 
 export default function Mensagens() {
   const { profile } = useAuth()
-  const tabela = profile?.conversa_tabela?.trim() || null
+  // Aceita uma OU várias tabelas separadas por vírgula (ex.:
+  // "n8n_chat_histories_cobranca, n8n_chat_histories_cobranca_nexla").
+  // O front lê de todas, normaliza e mescla por tempo.
+  const tabelas = (profile?.conversa_tabela ?? '')
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
   const instancia = profile?.evolution_instancia?.trim() || null
-  // Nome real da tabela que foi aceito pelo PostgREST (case-insensitive resolve)
-  const [resolvedTabela, setResolvedTabela] = useState<string | null>(null)
+  // Nomes reais que foram aceitos pelo PostgREST (case-insensitive resolve)
+  const [resolvedTabelas, setResolvedTabelas] = useState<string[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [msgs, setMsgs] = useState<ConversaMsg[]>([])
   const [loading, setLoading] = useState(true)
@@ -132,10 +138,8 @@ export default function Mensagens() {
     setLoading(true)
     setError(null)
     try {
-      // Tenta a tabela com o nome digitado; se PostgREST não achar,
-      // tenta lowercase, depois uppercase. Resolve o "NEXLA" vs "nexla".
-      async function loadConversasTable() {
-        if (!tabela) return { data: [] as Record<string, unknown>[], error: null, name: null }
+      // Lê UMA tabela tentando variações de case (NEXLA → nexla → NEXLA).
+      async function loadOneTable(nome: string) {
         const tentativas: string[] = []
         const seen = new Set<string>()
         const push = (s: string) => {
@@ -144,29 +148,27 @@ export default function Mensagens() {
             tentativas.push(s)
           }
         }
-        push(tabela)
-        push(tabela.toLowerCase())
-        push(tabela.toUpperCase())
+        push(nome)
+        push(nome.toLowerCase())
+        push(nome.toUpperCase())
         for (const t of tentativas) {
           const r = await supabase.from(t as never).select('*').limit(2000)
           if (!r.error) {
-            return { data: r.data as Record<string, unknown>[], error: null, name: t }
+            return { data: r.data as Record<string, unknown>[], name: t, error: null }
           }
-          // só faz fallback quando é "tabela não encontrada"
           const msg = r.error.message ?? ''
           if (!/not find the table|schema cache|does not exist/i.test(msg)) {
-            return { data: [] as Record<string, unknown>[], error: r.error, name: null }
+            return { data: [] as Record<string, unknown>[], name: null, error: r.error }
           }
         }
         return {
           data: [] as Record<string, unknown>[],
-          error: { message: `tabela "${tabela}" não encontrada (tentei: ${tentativas.join(', ')})` },
           name: null,
+          error: { message: `tabela "${nome}" não encontrada` },
         }
       }
 
-      // mensagens_atendente — filtra pela instância do user (case-insensitive)
-      // pra não mostrar testes/lixo de outras instâncias que ficaram na tabela.
+      // mensagens_atendente — filtra pela instância do user
       const atdQuery = supabase
         .from('mensagens_atendente')
         .select('*')
@@ -174,24 +176,34 @@ export default function Mensagens() {
         .limit(2000)
       if (instancia) atdQuery.ilike('instancia', instancia)
 
-      const [c, m, atd] = await Promise.all([
+      const [c, tabelasResults, atd] = await Promise.all([
         supabase.from('clientes').select('*').order('nome'),
-        loadConversasTable(),
+        Promise.all(tabelas.map(loadOneTable)),
         atdQuery,
       ])
       if (c.error) console.warn('[mensagens] clientes:', c.error.message)
-      if (m.error) {
-        console.warn('[mensagens] conversas:', m.error.message)
-        setError(
-          `Não consegui ler a tabela "${tabela}": ${m.error.message}`,
-        )
-      }
-      setResolvedTabela(m.name)
       if (atd.error) console.warn('[mensagens] atendente:', atd.error.message)
+
+      // Acumula erros e nomes resolvidos
+      const erros: string[] = []
+      const nomesResolvidos: string[] = []
+      const linhasAI: Record<string, unknown>[] = []
+      for (const r of tabelasResults) {
+        if (r.error) {
+          console.warn('[mensagens] tabela:', r.error.message)
+          erros.push(r.error.message)
+        }
+        if (r.name) nomesResolvidos.push(r.name)
+        linhasAI.push(...r.data)
+      }
+      setResolvedTabelas(nomesResolvidos)
+      if (tabelas.length > 0 && nomesResolvidos.length === 0) {
+        setError(`Nenhuma das tabelas foi encontrada: ${erros.join(' · ')}`)
+      }
 
       setClientes(c.data ?? [])
 
-      const aiRows = m.data ?? []
+      const aiRows = linhasAI
       const aiNormalized = aiRows.map((r, i) => ({
         ...normalizeRow(r, i),
         source: 'ai' as const,
@@ -303,12 +315,13 @@ export default function Mensagens() {
   // Por isso também rodamos um polling leve como fallback.
   useEffect(() => {
     if (!isSupabaseConfigured) return
-    const channel = supabase.channel(`conv-${resolvedTabela ?? 'none'}`)
-    if (resolvedTabela) {
+    const channelKey = resolvedTabelas.length ? resolvedTabelas.join('-') : 'none'
+    const channel = supabase.channel(`conv-${channelKey}`)
+    for (const t of resolvedTabelas) {
       channel.on(
         // @ts-ignore — postgres_changes não tem types completos
         'postgres_changes',
-        { event: '*', schema: 'public', table: resolvedTabela },
+        { event: '*', schema: 'public', table: t },
         () => load(),
       )
     }
@@ -323,17 +336,17 @@ export default function Mensagens() {
       supabase.removeChannel(channel)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedTabela])
+  }, [resolvedTabelas.join('|')])
 
   // Polling de 8s como fallback (essencial quando conversa_tabela é uma view)
   useEffect(() => {
-    if (!isSupabaseConfigured || !tabela) return
+    if (!isSupabaseConfigured || tabelas.length === 0) return
     const handle = window.setInterval(() => {
       load()
     }, 8000)
     return () => window.clearInterval(handle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabela])
+  }, [tabelas.join('|')])
 
   // Indexa última mensagem por telefone normalizado
   const lastByPhone = useMemo(() => {
@@ -444,18 +457,18 @@ export default function Mensagens() {
       <PageHeader
         title="Mensagens"
         subtitle={
-          resolvedTabela
-            ? `Lendo de "${resolvedTabela}"${
+          resolvedTabelas.length
+            ? `Lendo de ${resolvedTabelas.map((t) => `"${t}"`).join(' + ')}${
                 instancia ? ` · instância ${instancia}` : ''
               }`
             : 'Conversas em tempo real por cliente.'
         }
       />
 
-      {!tabela ? (
+      {tabelas.length === 0 ? (
         <EmptyState
           title="Tabela de conversas não configurada"
-          hint="Peça ao admin pra preencher o campo 'Tabela de conversas' no seu perfil (/usuarios)."
+          hint="Peça ao admin pra preencher o campo 'Tabela de conversas' no seu perfil (/usuarios). Pode colocar mais de uma separada por vírgula."
         />
       ) : error ? (
         <div className="border border-danger/30 bg-red-50 text-danger rounded-lg p-4 text-sm">

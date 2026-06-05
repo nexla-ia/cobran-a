@@ -389,7 +389,7 @@ export default function Usuarios() {
             </Field>
             <Field
               label="Tabela de conversas"
-              hint="Nome da tabela onde o sistema guarda o histórico de conversas deste usuário."
+              hint="Nome da tabela com o histórico de conversas. Pode listar mais de uma separadas por vírgula (ex.: tabela_geral, tabela_do_user)."
             >
               <Input
                 autoComplete="off"
