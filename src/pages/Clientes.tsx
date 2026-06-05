@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, FileDown, Search, Loader2 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Plus, Trash2, FileDown, FileUp, Download, Search, Loader2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import type { Cliente, ClienteTipo } from '@/types/db'
@@ -74,6 +75,7 @@ function clienteToForm(c: Cliente): Form {
 }
 
 export default function Clientes() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [rows, setRows] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
@@ -83,6 +85,32 @@ export default function Clientes() {
   const [lookingDoc, setLookingDoc] = useState(false)
   const [lookingCep, setLookingCep] = useState(false)
   const [filter, setFilter] = useState<'todos' | ClienteTipo>('todos')
+  const [importOpen, setImportOpen] = useState(false)
+  const [importPreview, setImportPreview] = useState<
+    | {
+        rows: Array<{
+          row: number
+          tipo: ClienteTipo
+          documento: string
+          nome: string
+          nome_fantasia: string | null
+          email: string | null
+          telefone: string | null
+          cep: string | null
+          logradouro: string | null
+          numero: string | null
+          complemento: string | null
+          bairro: string | null
+          cidade: string | null
+          uf: string | null
+          error?: string
+        }>
+        ok: number
+        falha: number
+      }
+    | null
+  >(null)
+  const [importing, setImporting] = useState(false)
 
   async function load() {
     setLoading(true)
@@ -111,6 +139,26 @@ export default function Clientes() {
     setForm(empty)
     setOpen(true)
   }
+
+  // Abre modal pré-preenchido quando vem de /mensagens com ?novo=1&telefone=...
+  useEffect(() => {
+    if (searchParams.get('novo') !== '1') return
+    const telParam = searchParams.get('telefone') ?? ''
+    const parsed = parsePhone(telParam)
+    setEditing(null)
+    setForm({
+      ...empty,
+      dial: parsed.dial || '55',
+      telefone: parsed.numero || '',
+    })
+    setOpen(true)
+    // Limpa params da URL pra não reabrir em refresh
+    const next = new URLSearchParams(searchParams)
+    next.delete('novo')
+    next.delete('telefone')
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   function openEdit(c: Cliente) {
     setEditing(c)
@@ -224,6 +272,212 @@ export default function Clientes() {
     XLSX.writeFile(wb, 'clientes.xlsx')
   }
 
+  function downloadTemplate() {
+    const ws = XLSX.utils.json_to_sheet([
+      {
+        tipo: 'pf',
+        documento: '111.222.333-44',
+        nome: 'Maria Silva',
+        nome_fantasia: '',
+        email: 'maria@example.com',
+        telefone: '+55 11 99999-9999',
+        cep: '01310-100',
+        logradouro: 'Av. Paulista',
+        numero: '1578',
+        complemento: 'Ap 12',
+        bairro: 'Bela Vista',
+        cidade: 'São Paulo',
+        uf: 'SP',
+      },
+      {
+        tipo: 'pj',
+        documento: '11.222.333/0001-44',
+        nome: 'Empresa Exemplo Ltda',
+        nome_fantasia: 'Exemplo',
+        email: 'contato@exemplo.com',
+        telefone: '+55 11 3000-0000',
+        cep: '04543-000',
+        logradouro: 'Av. Brigadeiro Faria Lima',
+        numero: '3477',
+        complemento: '14º andar',
+        bairro: 'Itaim Bibi',
+        cidade: 'São Paulo',
+        uf: 'SP',
+      },
+    ])
+    ;(ws as XLSX.WorkSheet)['!cols'] = [
+      { wch: 8 },   // tipo
+      { wch: 22 },  // documento
+      { wch: 28 },  // nome
+      { wch: 22 },  // nome_fantasia
+      { wch: 26 },  // email
+      { wch: 20 },  // telefone
+      { wch: 12 },  // cep
+      { wch: 30 },  // logradouro
+      { wch: 8 },   // numero
+      { wch: 18 },  // complemento
+      { wch: 18 },  // bairro
+      { wch: 18 },  // cidade
+      { wch: 6 },   // uf
+    ]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes')
+
+    const aux = XLSX.utils.aoa_to_sheet([
+      ['Como preencher'],
+      [''],
+      ['tipo', 'Obrigatório. "pf" (pessoa física) ou "pj" (pessoa jurídica).'],
+      ['documento', 'Obrigatório. CPF (11 dígitos) pra PF, CNPJ (14 dígitos) pra PJ. Com ou sem formatação.'],
+      ['nome', 'Obrigatório. Nome completo (PF) ou razão social (PJ).'],
+      ['nome_fantasia', 'Opcional, só PJ. Apelido comercial.'],
+      ['email', 'Opcional.'],
+      ['telefone', 'Opcional. Com DDI ou só com DDD. Ex.: +55 11 99999-9999.'],
+      ['cep', 'Opcional. Com ou sem hífen.'],
+      ['logradouro', 'Opcional. Rua/Avenida.'],
+      ['numero', 'Opcional.'],
+      ['complemento', 'Opcional.'],
+      ['bairro', 'Opcional.'],
+      ['cidade', 'Opcional.'],
+      ['uf', 'Opcional. 2 letras (SP, RJ, etc.).'],
+      [''],
+      ['Apague estas linhas de exemplo antes de importar.'],
+    ])
+    ;(aux as XLSX.WorkSheet)['!cols'] = [{ wch: 16 }, { wch: 80 }]
+    XLSX.utils.book_append_sheet(wb, aux, 'Instruções')
+    XLSX.writeFile(wb, 'modelo-clientes.xlsx')
+  }
+
+  function onlyDigits(s: string | number | null | undefined) {
+    return String(s ?? '').replace(/\D/g, '')
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const data = await file.arrayBuffer()
+      const wb = XLSX.read(data, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+      if (raw.length === 0) {
+        toast.error('Planilha vazia.')
+        return
+      }
+
+      const docsExistentes = new Set(rows.map((r) => onlyDigits(r.documento)))
+      const docsLinha = new Set<string>()
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+      const out = raw.map((r, idx) => {
+        const tipoRaw = String((r as { tipo?: string }).tipo ?? '').toLowerCase().trim()
+        const tipo = (tipoRaw === 'pj' ? 'pj' : 'pf') as ClienteTipo
+        const tipoExplicit = tipoRaw === 'pj' || tipoRaw === 'pf'
+        const documento = String((r as { documento?: string }).documento ?? '').trim()
+        const nome = String((r as { nome?: string }).nome ?? '').trim()
+        const nome_fantasia =
+          String((r as { nome_fantasia?: string }).nome_fantasia ?? '').trim() || null
+        const email = String((r as { email?: string }).email ?? '').trim() || null
+        const telefoneRaw = String((r as { telefone?: string }).telefone ?? '').trim()
+        const telefone = telefoneRaw
+          ? (() => {
+              const parsed = parsePhone(telefoneRaw)
+              return composePhone(parsed.dial, parsed.numero) || onlyDigits(telefoneRaw) || null
+            })()
+          : null
+        const cep = String((r as { cep?: string }).cep ?? '').trim() || null
+        const logradouro = String((r as { logradouro?: string }).logradouro ?? '').trim() || null
+        const numero = String((r as { numero?: string }).numero ?? '').trim() || null
+        const complemento = String((r as { complemento?: string }).complemento ?? '').trim() || null
+        const bairro = String((r as { bairro?: string }).bairro ?? '').trim() || null
+        const cidade = String((r as { cidade?: string }).cidade ?? '').trim() || null
+        const uf = String((r as { uf?: string }).uf ?? '').trim().toUpperCase().slice(0, 2) || null
+
+        const docDigits = onlyDigits(documento)
+        let error: string | undefined
+
+        if (!tipoExplicit) error = 'tipo inválido (use pf ou pj)'
+        else if (!documento) error = 'documento vazio'
+        else if (tipo === 'pf' && docDigits.length !== 11) error = 'CPF deve ter 11 dígitos'
+        else if (tipo === 'pj' && docDigits.length !== 14) error = 'CNPJ deve ter 14 dígitos'
+        else if (!nome) error = 'nome vazio'
+        else if (email && !emailRegex.test(email)) error = 'email inválido'
+        else if (docsExistentes.has(docDigits)) error = 'documento já cadastrado'
+        else if (docsLinha.has(docDigits)) error = 'documento duplicado na planilha'
+
+        if (!error && docDigits) docsLinha.add(docDigits)
+
+        const documentoFmt =
+          tipo === 'pj' ? formatCnpj(docDigits || documento) : formatCpf(docDigits || documento)
+
+        return {
+          row: idx + 2,
+          tipo,
+          documento: documentoFmt,
+          nome,
+          nome_fantasia: tipo === 'pj' ? nome_fantasia : null,
+          email,
+          telefone,
+          cep,
+          logradouro,
+          numero,
+          complemento,
+          bairro,
+          cidade,
+          uf,
+          error,
+        }
+      })
+
+      const ok = out.filter((r) => !r.error).length
+      setImportPreview({ rows: out, ok, falha: out.length - ok })
+    } catch (err) {
+      console.error('[import clientes] parse falhou:', err)
+      toast.error('Falha ao ler arquivo. Use o modelo .xlsx.')
+    }
+  }
+
+  async function confirmImport() {
+    if (!importPreview) return
+    const validRows = importPreview.rows.filter((r) => !r.error)
+    if (validRows.length === 0) {
+      toast.error('Nenhuma linha válida pra importar.')
+      return
+    }
+    setImporting(true)
+    try {
+      const payloads = validRows.map((r) => ({
+        tipo: r.tipo,
+        documento: r.documento,
+        nome: r.nome,
+        nome_fantasia: r.nome_fantasia,
+        email: r.email,
+        telefone: r.telefone,
+        cep: r.cep,
+        logradouro: r.logradouro,
+        numero: r.numero,
+        complemento: r.complemento,
+        bairro: r.bairro,
+        cidade: r.cidade,
+        uf: r.uf,
+      }))
+      const { error } = await supabase.from('clientes').insert(payloads)
+      if (error) {
+        toast.error(error.message)
+        return
+      }
+      toast.success(`${validRows.length} cliente(s) importado(s).`)
+      setImportOpen(false)
+      setImportPreview(null)
+      load()
+    } catch (e) {
+      console.error('[import clientes] insert falhou:', e)
+      toast.error('Falha ao importar.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const filtered = filter === 'todos' ? rows : rows.filter((r) => r.tipo === filter)
 
   function setDocumento(v: string) {
@@ -237,6 +491,16 @@ export default function Clientes() {
         subtitle="Pessoas físicas e jurídicas que você cobra."
         actions={
           <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setImportPreview(null)
+                setImportOpen(true)
+              }}
+            >
+              <FileUp className="size-4" />
+              Importar
+            </Button>
             <Button variant="secondary" onClick={exportXlsx} disabled={filtered.length === 0}>
               <FileDown className="size-4" />
               Exportar
@@ -522,6 +786,138 @@ export default function Clientes() {
             </div>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        onClose={() => {
+          setImportOpen(false)
+          setImportPreview(null)
+        }}
+        title="Importar clientes"
+        footer={
+          importPreview ? (
+            <>
+              <Button type="button" variant="secondary" onClick={() => setImportPreview(null)}>
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                onClick={confirmImport}
+                disabled={importing || importPreview.ok === 0}
+              >
+                {importing ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
+                Importar {importPreview.ok} cliente(s)
+              </Button>
+            </>
+          ) : (
+            <Button type="button" variant="secondary" onClick={() => setImportOpen(false)}>
+              Cancelar
+            </Button>
+          )
+        }
+      >
+        {!importPreview ? (
+          <div className="space-y-4">
+            <p className="text-sm text-fg-3 leading-relaxed">
+              Cadastre vários clientes de uma vez a partir de uma planilha. Os campos obrigatórios
+              são <code className="font-mono text-fg-2 bg-hover px-1 py-0.5 rounded">tipo</code>,{' '}
+              <code className="font-mono text-fg-2 bg-hover px-1 py-0.5 rounded">documento</code> e{' '}
+              <code className="font-mono text-fg-2 bg-hover px-1 py-0.5 rounded">nome</code>.
+            </p>
+
+            <div className="rounded-lg border border-border bg-bg p-4">
+              <div className="text-xs font-medium text-fg-2 mb-2">1. Baixe o modelo</div>
+              <Button type="button" variant="secondary" onClick={downloadTemplate}>
+                <Download className="size-4" />
+                Baixar modelo .xlsx
+              </Button>
+              <div className="mt-2 text-[11px] text-fg-4">
+                A planilha vem com a aba <b>Clientes</b> + uma aba <b>Instruções</b>.
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-bg p-4">
+              <div className="text-xs font-medium text-fg-2 mb-2">2. Envie o arquivo preenchido</div>
+              <label className="inline-flex items-center gap-2 h-9 px-3 text-sm rounded-md bg-fg text-surface hover:bg-fg-2 transition cursor-pointer">
+                <FileUp className="size-4" />
+                Selecionar arquivo .xlsx
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="sr-only"
+                  onChange={handleImportFile}
+                />
+              </label>
+            </div>
+
+            <div className="text-[11px] text-fg-4 leading-relaxed">
+              Documentos já cadastrados ou duplicados na própria planilha são ignorados.
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="px-2 py-0.5 rounded bg-green-50 text-success border border-green-200 text-xs font-medium">
+                {importPreview.ok} ok
+              </span>
+              {importPreview.falha > 0 && (
+                <span className="px-2 py-0.5 rounded bg-red-50 text-danger border border-red-200 text-xs font-medium">
+                  {importPreview.falha} com erro
+                </span>
+              )}
+              <span className="text-fg-4 text-xs">
+                de {importPreview.rows.length} linha(s) totais
+              </span>
+            </div>
+
+            <div className="border border-border rounded-md overflow-hidden max-h-[360px] overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-bg sticky top-0">
+                  <tr className="border-b border-border">
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium w-10">#</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium w-12">Tipo</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Documento</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Nome</th>
+                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Cidade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.rows.map((r) => (
+                    <tr
+                      key={r.row}
+                      className={`border-b border-border-2 last:border-b-0 ${
+                        r.error ? 'bg-red-50/50' : ''
+                      }`}
+                    >
+                      <td className="px-2 py-1.5 text-fg-4 tabular">{r.row}</td>
+                      <td className="px-2 py-1.5 text-fg-2 uppercase">{r.tipo}</td>
+                      <td className="px-2 py-1.5 font-mono text-fg-2 tabular">
+                        {r.documento || '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-fg">
+                        {r.nome || '—'}
+                        {r.error && (
+                          <div className="text-[10px] text-danger mt-0.5">{r.error}</div>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-fg-3">
+                        {r.cidade ? `${r.cidade}${r.uf ? '/' + r.uf : ''}` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {importPreview.falha > 0 && (
+              <p className="text-[11px] text-fg-4">
+                Linhas com erro serão ignoradas. Corrija na planilha e re-envie se quiser
+                importar todas.
+              </p>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   )
