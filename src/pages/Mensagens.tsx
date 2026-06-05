@@ -272,9 +272,18 @@ export default function Mensagens() {
         }
       })
 
-      const merged = [...aiNormalized, ...atdNormalized].sort(
-        (a, b) => new Date(a.criada_em).getTime() - new Date(b.criada_em).getTime(),
-      )
+      // Ordena cronologicamente. Quando timestamps batem (ex.: rows AI antigas
+      // que receberam o mesmo created_at na migration), desempata pelo id
+      // serial — que cresce na ordem real das mensagens.
+      const merged = [...aiNormalized, ...atdNormalized].sort((a, b) => {
+        const ta = new Date(a.criada_em).getTime()
+        const tb = new Date(b.criada_em).getTime()
+        if (ta !== tb) return ta - tb
+        const ia = Number(a.id)
+        const ib = Number(b.id)
+        if (Number.isFinite(ia) && Number.isFinite(ib)) return ia - ib
+        return String(a.id).localeCompare(String(b.id))
+      })
       setMsgs(merged)
     } catch (e) {
       console.error('[mensagens] load:', e)
