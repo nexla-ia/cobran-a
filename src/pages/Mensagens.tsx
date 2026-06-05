@@ -198,7 +198,13 @@ export default function Mensagens() {
       }))
 
       const atdRows = (atd.data as Record<string, unknown>[]) ?? []
-      const atdNormalized: ConversaMsg[] = atdRows.map((r, i) => {
+      // Filtra fora grupos do WhatsApp (@g.us). Só mantém 1-on-1 (@s.whatsapp.net
+      // ou número puro).
+      const atdRowsSemGrupos = atdRows.filter((r) => {
+        const num = String((r as { numero?: string }).numero ?? '')
+        return !num.includes('@g.us')
+      })
+      const atdNormalized: ConversaMsg[] = atdRowsSemGrupos.map((r, i) => {
         const rawNumero = (r.numero as string | null) ?? null
         // Estripa @s.whatsapp.net caso o n8n tenha gravado com sufixo
         const telefone = rawNumero ? rawNumero.split('@')[0] : null
