@@ -343,6 +343,8 @@ export default function Mensagens() {
           base64: (r.base64 as string | null) ?? null,
           // midia_type fica null aqui — o renderer detecta pelo base64 direto
           midia_type: null,
+          nome_arquivo: (r.nome_arquivo as string | null) ?? null,
+          mime_type: (r.mime_type as string | null) ?? null,
         }
       })
 
@@ -719,9 +721,32 @@ export default function Mensagens() {
                                 </div>
                               )}
                               {m.base64 && (() => {
-                                const mime = detectMime(m.base64)
+                                // Prefere o mime do banco (n8n pode ter salvo o original);
+                                // senão detecta pelos magic bytes do base64.
+                                const mime = m.mime_type || detectMime(m.base64)
                                 const kind = mimeToKind(mime)
                                 const src = dataUriFromBase64(m.base64, mime)
+                                // Nome de download: usa nome_arquivo do banco se houver,
+                                // senão monta com extensão derivada do mime.
+                                const extMap: Record<string, string> = {
+                                  'application/pdf': 'pdf',
+                                  'application/zip': 'zip',
+                                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+                                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+                                  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+                                  'application/msword': 'doc',
+                                  'application/vnd.ms-excel': 'xls',
+                                  'audio/ogg': 'ogg',
+                                  'audio/mpeg': 'mp3',
+                                  'audio/webm': 'webm',
+                                  'video/mp4': 'mp4',
+                                  'image/jpeg': 'jpg',
+                                  'image/png': 'png',
+                                  'image/gif': 'gif',
+                                  'image/webp': 'webp',
+                                }
+                                const ext = extMap[mime] ?? mime.split('/')[1] ?? 'bin'
+                                const downloadName = m.nome_arquivo || `arquivo.${ext}`
                                 if (kind === 'image' || kind === 'sticker') {
                                   return (
                                     <img
@@ -753,13 +778,7 @@ export default function Mensagens() {
                                         </audio>
                                         <a
                                           href={src}
-                                          download={
-                                            mime.includes('ogg')
-                                              ? 'audio.ogg'
-                                              : mime.includes('mpeg')
-                                                ? 'audio.mp3'
-                                                : 'audio.bin'
-                                          }
+                                          download={downloadName}
                                           title="Baixar áudio"
                                           className={`size-7 grid place-items-center rounded text-[11px] shrink-0 ${
                                             isOut
@@ -794,14 +813,14 @@ export default function Mensagens() {
                                 return (
                                   <a
                                     href={src}
-                                    download={kind === 'pdf' ? 'documento.pdf' : 'arquivo'}
+                                    download={downloadName}
                                     className={`mb-1 inline-flex items-center gap-2 px-2 py-1.5 rounded border text-xs ${
                                       isOut
                                         ? 'border-white/30 bg-white/10 text-white hover:bg-white/20'
                                         : 'border-border bg-bg text-fg-2 hover:bg-hover'
                                     } transition`}
                                   >
-                                    📎 {kind === 'pdf' ? 'Documento PDF' : 'Arquivo anexo'}
+                                    📎 {m.nome_arquivo ?? (kind === 'pdf' ? 'Documento PDF' : `Arquivo .${ext}`)}
                                   </a>
                                 )
                               })()}

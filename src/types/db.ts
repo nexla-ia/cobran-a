@@ -107,6 +107,8 @@ export type ConversaMsg = {
   atendente_nome?: string | null
   base64?: string | null
   midia_type?: string | null
+  nome_arquivo?: string | null
+  mime_type?: string | null
 }
 
 type TableShape<R, I, U> = {
