@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2, FileDown, FileUp, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search, Download, Repeat } from 'lucide-react'
+import { Plus, Trash2, FileDown, FileUp, CheckCircle2, RotateCcw, Send, Loader2, X, Clock, AlertCircle, Ban, Search, Download, Repeat, Receipt } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { supabase, isSupabaseConfigured, syncOverdueCobrancas } from '@/lib/supabase'
 import type { Cliente, Cobranca, CobrancaStatus } from '@/types/db'
@@ -882,46 +882,121 @@ export default function Cobrancas() {
           </>
         }
       >
-        <form id="form-cobranca" onSubmit={save} className="space-y-3">
-          <Field label="Cliente">
-            <Combo
-              required
-              value={form.cliente_id}
-              onChange={(v) => setForm({ ...form, cliente_id: v })}
-              placeholder="Selecione um cliente…"
-              options={clientes.map((c) => ({
-                value: c.id,
-                label: (
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-fg">{c.nome}</span>
-                    <span className="text-xs text-fg-4 font-mono tabular">{c.documento}</span>
-                  </span>
-                ),
-              }))}
-            />
-          </Field>
+        <form id="form-cobranca" onSubmit={save} className="space-y-5">
+          {/* Cliente */}
+          <div>
+            <Field label="Cliente">
+              <Combo
+                required
+                value={form.cliente_id}
+                onChange={(v) => setForm({ ...form, cliente_id: v })}
+                placeholder="Selecione um cliente…"
+                options={clientes.map((c) => ({
+                  value: c.id,
+                  label: (
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-fg">{c.nome}</span>
+                      <span className="text-xs text-fg-4 font-mono tabular">{c.documento}</span>
+                    </span>
+                  ),
+                }))}
+              />
+            </Field>
+            {(() => {
+              const c = form.cliente_id ? clienteMap.get(form.cliente_id) : null
+              if (!c) return null
+              return (
+                <div className="mt-2 flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border-2 bg-bg">
+                  <div className="size-6 rounded-full bg-fg text-surface grid place-items-center text-[10px] font-semibold shrink-0">
+                    {c.nome.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex items-baseline gap-2 text-xs">
+                    <span className="font-medium text-fg truncate">{c.nome}</span>
+                    <span className="font-mono tabular text-fg-4 shrink-0">{c.documento}</span>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
 
-          <Field label="Nome" hint="Título curto pra identificar e buscar depois.">
-            <Input
-              required
-              value={form.nome}
-              onChange={(e) => setForm({ ...form, nome: e.target.value })}
-              placeholder="Ex: Mensalidade Maio/2026"
-            />
-          </Field>
+          {/* Detalhes */}
+          <div className="space-y-3">
+            <Field label="Título" hint="Nome curto pra identificar e buscar depois.">
+              <Input
+                required
+                value={form.nome}
+                onChange={(e) => setForm({ ...form, nome: e.target.value })}
+                placeholder="Ex: Mensalidade Maio/2026"
+              />
+            </Field>
 
-          <Field label="Descrição">
-            <Textarea
-              required
-              rows={4}
-              value={form.descricao}
-              onChange={(e) => setForm({ ...form, descricao: e.target.value })}
-              placeholder="Detalhes da cobrança, plano, observações…"
-            />
-          </Field>
+            <Field label="Descrição">
+              <Textarea
+                required
+                rows={3}
+                value={form.descricao}
+                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                placeholder="Detalhes da cobrança, plano, observações…"
+              />
+            </Field>
+          </div>
 
+          {/* Tipo de cobrança */}
+          <div>
+            <div className="text-xs font-medium text-fg-2 mb-2">Tipo de cobrança</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, mensalidade: false })}
+                className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                  !form.mensalidade
+                    ? 'border-fg bg-fg/[0.03]'
+                    : 'border-border bg-surface hover:border-fg-4'
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-2 ${
+                    !form.mensalidade ? 'text-fg' : 'text-fg-2'
+                  }`}
+                >
+                  <Receipt className="size-4" />
+                  <span className="text-sm font-medium">Única</span>
+                </div>
+                <div className="text-[11px] text-fg-3 mt-1">
+                  Cobrança avulsa, não repete.
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, mensalidade: true })}
+                className={`rounded-lg border px-3 py-2.5 text-left transition ${
+                  form.mensalidade
+                    ? 'border-fg bg-fg/[0.03]'
+                    : 'border-border bg-surface hover:border-fg-4'
+                }`}
+              >
+                <div
+                  className={`flex items-center gap-2 ${
+                    form.mensalidade ? 'text-fg' : 'text-fg-2'
+                  }`}
+                >
+                  <Repeat className="size-4" />
+                  <span className="text-sm font-medium">Mensal</span>
+                </div>
+                <div className="text-[11px] text-fg-3 mt-1">
+                  Renova todo mês automaticamente.
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Valor + Vencimento */}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Valor (R$)" hint="Digite só os números, os centavos entram automático.">
+            <Field
+              label="Valor (R$)"
+              hint="Digite só os números, os centavos entram automático."
+            >
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3 text-sm pointer-events-none">
                   R$
@@ -939,13 +1014,20 @@ export default function Cobrancas() {
               </div>
             </Field>
             <Field
-              label="Vencimento"
+              label={form.mensalidade ? 'Dia do mês' : 'Vencimento'}
               hint={
                 form.vencimento
-                  ? `Vence em ${(() => {
-                      const [y, m, d] = form.vencimento.split('-')
-                      return `${d}/${m}/${y}`
-                    })()}`
+                  ? form.mensalidade
+                    ? `Renova todo dia ${dayFromISO(form.vencimento)
+                        .toString()
+                        .padStart(2, '0')} · próximo: ${(() => {
+                        const [y, m, d] = form.vencimento.split('-')
+                        return `${d}/${m}/${y}`
+                      })()}`
+                    : `Vence em ${(() => {
+                        const [y, m, d] = form.vencimento.split('-')
+                        return `${d}/${m}/${y}`
+                      })()}`
                   : 'Selecione o dia.'
               }
             >
@@ -962,22 +1044,6 @@ export default function Cobrancas() {
               />
             </Field>
           </div>
-
-          <label className="flex items-start gap-2.5 cursor-pointer rounded-md border border-border bg-bg px-3 py-2.5 hover:border-fg-4 transition">
-            <input
-              type="checkbox"
-              checked={form.mensalidade}
-              onChange={(e) => setForm({ ...form, mensalidade: e.target.checked })}
-              className="mt-0.5 accent-fg"
-            />
-            <span className="text-sm">
-              <span className="text-fg font-medium">É uma mensalidade</span>
-              <span className="block text-xs text-fg-3 mt-0.5">
-                Quando passar do vencimento, vira automaticamente <code>pendente</code> e o
-                vencimento avança 1 mês.
-              </span>
-            </span>
-          </label>
 
           {editing && (
             <Field label="Status">
