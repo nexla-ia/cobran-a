@@ -113,6 +113,7 @@ type Conversa = {
 export default function Mensagens() {
   const { profile } = useAuth()
   const tabela = profile?.conversa_tabela?.trim() || null
+  const instancia = profile?.evolution_instancia?.trim() || null
   // Nome real da tabela que foi aceito pelo PostgREST (case-insensitive resolve)
   const [resolvedTabela, setResolvedTabela] = useState<string | null>(null)
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -164,14 +165,19 @@ export default function Mensagens() {
         }
       }
 
+      // mensagens_atendente — filtra pela instância do user (case-insensitive)
+      // pra não mostrar testes/lixo de outras instâncias que ficaram na tabela.
+      const atdQuery = supabase
+        .from('mensagens_atendente')
+        .select('*')
+        .order('hora_last_message', { ascending: true })
+        .limit(2000)
+      if (instancia) atdQuery.ilike('instancia', instancia)
+
       const [c, m, atd] = await Promise.all([
         supabase.from('clientes').select('*').order('nome'),
         loadConversasTable(),
-        supabase
-          .from('mensagens_atendente')
-          .select('*')
-          .order('hora_last_message', { ascending: true })
-          .limit(2000),
+        atdQuery,
       ])
       if (c.error) console.warn('[mensagens] clientes:', c.error.message)
       if (m.error) {
@@ -420,7 +426,16 @@ export default function Mensagens() {
 
   return (
     <div>
-      <PageHeader title="Mensagens" subtitle="Conversas em tempo real por cliente." />
+      <PageHeader
+        title="Mensagens"
+        subtitle={
+          resolvedTabela
+            ? `Lendo de "${resolvedTabela}"${
+                instancia ? ` · instância ${instancia}` : ''
+              }`
+            : 'Conversas em tempo real por cliente.'
+        }
+      />
 
       {!tabela ? (
         <EmptyState
