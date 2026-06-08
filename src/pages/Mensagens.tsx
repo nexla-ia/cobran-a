@@ -102,7 +102,22 @@ function detectMime(base64: string): string {
   if (p.startsWith('UklGR')) return 'image/webp'
   // Documentos
   if (p.startsWith('JVBERi')) return 'application/pdf'
-  if (p.startsWith('UEsDB')) return 'application/zip' // ou docx/xlsx (zip-based)
+  // Office DOCX/XLSX/PPTX usam o mesmo header de ZIP (PK\x03\x04 → UEsDB).
+  // Peek nos primeiros ~2KB decodificados pra achar marcadores internos.
+  if (p.startsWith('UEsDB')) {
+    try {
+      const sample = atob(base64.slice(0, 2800).replace(/[^A-Za-z0-9+/]/g, ''))
+      if (sample.includes('word/') || sample.includes('wordprocessingml'))
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      if (sample.includes('xl/') || sample.includes('spreadsheetml'))
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      if (sample.includes('ppt/') || sample.includes('presentationml'))
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+    } catch {
+      /* falha de decode = trata como zip mesmo */
+    }
+    return 'application/zip'
+  }
   // Áudio
   if (p.startsWith('T2dn') || p.startsWith('Ck9n')) return 'audio/ogg' // OggS
   if (p.startsWith('SUQz')) return 'audio/mpeg' // ID3 (mp3)
@@ -754,15 +769,23 @@ export default function Mensagens() {
                                 const downloadName = m.nome_arquivo || `arquivo.${ext}`
                                 if (kind === 'image' || kind === 'sticker') {
                                   return (
-                                    <img
-                                      src={src}
-                                      alt={kind === 'sticker' ? 'figurinha' : 'imagem'}
-                                      className={`mb-1 ${
-                                        kind === 'sticker'
-                                          ? 'max-w-[140px] max-h-[140px]'
-                                          : 'rounded-md max-w-full max-h-[320px]'
-                                      }`}
-                                    />
+                                    <a
+                                      href={src}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title="Abrir em tamanho real"
+                                      className="block mb-1 cursor-zoom-in"
+                                    >
+                                      <img
+                                        src={src}
+                                        alt={kind === 'sticker' ? 'figurinha' : 'imagem'}
+                                        className={
+                                          kind === 'sticker'
+                                            ? 'max-w-[140px] max-h-[140px]'
+                                            : 'rounded-md max-w-full max-h-[320px] hover:opacity-90 transition'
+                                        }
+                                      />
+                                    </a>
                                   )
                                 }
                                 if (kind === 'audio') {
