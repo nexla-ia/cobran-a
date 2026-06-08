@@ -374,6 +374,20 @@ export default function Mensagens() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabelas.join('|')])
 
+  // ESC fecha a conversa atual (mantém na tela /mensagens)
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && selectedTelefone) {
+        // não interfere se o foco está em input/textarea (ex.: busca)
+        const target = e.target as HTMLElement | null
+        if (target && /^(INPUT|TEXTAREA|SELECT)$/i.test(target.tagName)) return
+        setSelectedTelefone(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedTelefone])
+
   // Realtime na tabela apontada pelo profile + mensagens_atendente.
   // Obs.: Realtime do Supabase só funciona em TABELAS base — views ficam mudas.
   // Por isso também rodamos um polling leve como fallback.
@@ -519,16 +533,7 @@ export default function Mensagens() {
 
   return (
     <div>
-      <PageHeader
-        title="Mensagens"
-        subtitle={
-          resolvedTabelas.length
-            ? `Lendo de ${resolvedTabelas.map((t) => `"${t}"`).join(' + ')} + mensagens_atendente${
-                instancia ? ` · instância ${instancia}` : ''
-              }`
-            : `Lendo de mensagens_atendente${instancia ? ` · instância ${instancia}` : ''}`
-        }
-      />
+      <PageHeader title="Mensagens" subtitle="Conversas em tempo real por cliente." />
 
       {tabelas.length === 0 ? (
         <EmptyState

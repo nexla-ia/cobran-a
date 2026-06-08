@@ -393,7 +393,6 @@ export default function Cobrancas() {
         descricao: 'Plano premium — referente a maio',
         valor: 199.9,
         vencimento: '2026-05-28',
-        status: 'pendente',
       },
       {
         documento: '00.000.000/0000-00',
@@ -401,7 +400,6 @@ export default function Cobrancas() {
         descricao: 'Pagamento referente ao contrato 1234',
         valor: 1500,
         vencimento: '2026-06-10',
-        status: 'pendente',
       },
     ])
     // Largura das colunas
@@ -411,7 +409,6 @@ export default function Cobrancas() {
       { wch: 36 }, // descricao
       { wch: 12 }, // valor
       { wch: 14 }, // vencimento
-      { wch: 12 }, // status
     ]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Cobranças')
@@ -424,7 +421,9 @@ export default function Cobrancas() {
       ['descricao', 'Detalhes da cobrança.'],
       ['valor', 'Valor em reais com ponto decimal (ex.: 199.90).'],
       ['vencimento', 'Data ISO YYYY-MM-DD (ex.: 2026-05-28).'],
-      ['status', 'Opcional. pendente / pago / atrasado / cancelado. Default: pendente.'],
+      [''],
+      ['Toda cobrança começa como "pendente". O sistema marca como'],
+      ['atrasada/paga/cancelada depois — ou você ajusta direto na tela.'],
       [''],
       ['Apague estas linhas de exemplo antes de importar.'],
     ])
@@ -450,7 +449,6 @@ export default function Cobrancas() {
         toast.error('Planilha vazia.')
         return
       }
-      const validStatus: CobrancaStatus[] = ['pendente', 'pago', 'atrasado', 'cancelado']
       const byDoc = new Map<string, Cliente>()
       clientes.forEach((c) => byDoc.set(onlyDigits(c.documento), c))
 
@@ -468,12 +466,9 @@ export default function Cobrancas() {
         // aceita também DD/MM/YYYY
         const m = vencimentoRaw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
         if (m) vencimento = `${m[3]}-${m[2]}-${m[1]}`
-        const statusRaw =
-          String((r as { status?: string }).status ?? 'pendente').toLowerCase().trim() ||
-          'pendente'
-        const status = (validStatus.includes(statusRaw as CobrancaStatus)
-          ? (statusRaw as CobrancaStatus)
-          : 'pendente') as CobrancaStatus
+        // Toda cobrança importada começa pendente — o sistema/usuário ajusta
+        // depois (motor auto-cancela vencidas, marcar como pago via UI).
+        const status: CobrancaStatus = 'pendente'
 
         const docDigits = onlyDigits(documento)
         const cliente = docDigits ? byDoc.get(docDigits) ?? null : null
@@ -1202,7 +1197,8 @@ export default function Cobrancas() {
 
             <div className="text-[11px] text-fg-4 leading-relaxed">
               Campos esperados: <code className="font-mono">documento, nome, descricao, valor,
-              vencimento, status</code>. Status é opcional (default: pendente).
+              vencimento</code>. Toda cobrança importada começa pendente — o sistema atualiza
+              o status depois (ou você ajusta na tela).
             </div>
           </div>
         ) : (
@@ -1230,7 +1226,6 @@ export default function Cobrancas() {
                     <th className="px-2 py-2 text-left text-fg-3 font-medium">Nome</th>
                     <th className="px-2 py-2 text-right text-fg-3 font-medium">Valor</th>
                     <th className="px-2 py-2 text-left text-fg-3 font-medium">Vencimento</th>
-                    <th className="px-2 py-2 text-left text-fg-3 font-medium">Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1255,7 +1250,6 @@ export default function Cobrancas() {
                         {brl.format(r.valor)}
                       </td>
                       <td className="px-2 py-1.5 text-fg-3 tabular">{r.vencimento || '—'}</td>
-                      <td className="px-2 py-1.5 text-fg-3">{r.status}</td>
                     </tr>
                   ))}
                 </tbody>

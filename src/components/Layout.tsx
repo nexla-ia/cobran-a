@@ -4,6 +4,7 @@ import { LayoutGrid, Users, Receipt, CircleDollarSign, Menu, X, LogOut, ShieldCh
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { signOut, useAuth } from '@/lib/auth'
 import { confirmDialog, toast } from '@/lib/dialogs'
+import { useUnreadMessages } from '@/lib/notifications'
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutGrid, end: true, adminOnly: false },
@@ -20,6 +21,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const navigate = useNavigate()
   const email = session?.user?.email ?? ''
   const visibleNav = nav.filter((n) => !n.adminOnly || isAdmin)
+  const { unread } = useUnreadMessages()
 
   async function handleLogout() {
     try {
@@ -73,7 +75,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 h-4 w-[2px] bg-fg rounded-r" />
                 )}
                 <Icon className="size-4 shrink-0" />
-                {label}
+                <span className="flex-1">{label}</span>
+                {to === '/mensagens' && unread > 0 && (
+                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-semibold bg-danger text-white tabular shrink-0">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
               </>
             )}
           </NavLink>
@@ -125,6 +132,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export default function Layout() {
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { unread: unreadMsgs } = useUnreadMessages()
 
   useEffect(() => {
     setDrawerOpen(false)
@@ -149,10 +157,15 @@ export default function Layout() {
         </div>
         <button
           onClick={() => setDrawerOpen(true)}
-          className="size-9 grid place-items-center rounded-md text-fg-2 hover:bg-hover transition"
+          className="size-9 grid place-items-center rounded-md text-fg-2 hover:bg-hover transition relative"
           aria-label="Abrir menu"
         >
           <Menu className="size-5" />
+          {unreadMsgs > 0 && (
+            <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-semibold bg-danger text-white tabular leading-none">
+              {unreadMsgs > 99 ? '99+' : unreadMsgs}
+            </span>
+          )}
         </button>
       </header>
 
