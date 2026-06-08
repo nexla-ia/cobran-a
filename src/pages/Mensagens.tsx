@@ -157,6 +157,73 @@ function formatRelativeDay(iso: string) {
   }
 }
 
+// Lightbox interno: mostra imagem em tamanho médio (encaixa em ~70vh) e
+// permite alternar pra zoom real (100%) ao clicar. Botões de fechar e baixar.
+function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  const [zoom, setZoom] = useState(false)
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-fg/80 backdrop-blur-sm p-4"
+      onClick={onClose}
+      style={{ animation: 'fade-in 180ms ease-out both' }}
+    >
+      <div
+        className={`overflow-auto rounded-md shadow-2xl ${
+          zoom ? 'max-w-[95vw] max-h-[90vh]' : 'max-w-[70vw] max-h-[70vh]'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'rgba(0,0,0,0.2)',
+          transition: 'max-width 220ms cubic-bezier(0.22,1,0.36,1), max-height 220ms cubic-bezier(0.22,1,0.36,1)',
+        }}
+      >
+        <img
+          src={src}
+          alt="Imagem ampliada"
+          className={`block ${zoom ? '' : 'object-contain w-full h-full'}`}
+          onClick={() => setZoom((z) => !z)}
+          style={{
+            cursor: zoom ? 'zoom-out' : 'zoom-in',
+            maxWidth: zoom ? 'none' : '100%',
+            maxHeight: zoom ? 'none' : '100%',
+          }}
+        />
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 size-9 grid place-items-center rounded-full bg-surface/90 hover:bg-surface text-fg transition"
+        aria-label="Fechar"
+        title="Fechar (ESC)"
+      >
+        <X className="size-4" />
+      </button>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            setZoom((z) => !z)
+          }}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-surface/90 hover:bg-surface text-fg text-sm font-medium transition"
+          title="Alternar zoom"
+        >
+          {zoom ? '🔍 Encaixar' : '🔍 Tamanho real'}
+        </button>
+        <a
+          href={src}
+          download="imagem.jpg"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-surface/90 hover:bg-surface text-fg text-sm font-medium transition"
+          title="Baixar imagem"
+        >
+          ⬇ Baixar
+        </a>
+      </div>
+    </div>
+  )
+}
+
 type Conversa = {
   key: string                  // pra React (telefone normalizado ou id)
   telefone: string | null
@@ -899,36 +966,7 @@ export default function Mensagens() {
 
       {/* Lightbox de imagem */}
       {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-fg/80 backdrop-blur-sm p-4"
-          onClick={() => setLightboxSrc(null)}
-          style={{ animation: 'fade-in 180ms ease-out both' }}
-        >
-          <img
-            src={lightboxSrc}
-            alt="Imagem ampliada"
-            className="max-w-full max-h-full rounded-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-          <button
-            type="button"
-            onClick={() => setLightboxSrc(null)}
-            className="absolute top-4 right-4 size-9 grid place-items-center rounded-full bg-surface/90 hover:bg-surface text-fg transition"
-            aria-label="Fechar"
-            title="Fechar (ESC)"
-          >
-            <X className="size-4" />
-          </button>
-          <a
-            href={lightboxSrc}
-            download="imagem.jpg"
-            onClick={(e) => e.stopPropagation()}
-            className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-surface/90 hover:bg-surface text-fg text-sm font-medium transition"
-            title="Baixar imagem"
-          >
-            ⬇ Baixar
-          </a>
-        </div>
+        <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
       )}
     </div>
   )
