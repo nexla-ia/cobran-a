@@ -183,6 +183,7 @@ export default function Mensagens() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedTelefone, setSelectedTelefone] = useState<string | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const chatEndRef = useRef<HTMLDivElement | null>(null)
 
@@ -389,11 +390,15 @@ export default function Mensagens() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabelas.join('|')])
 
-  // ESC fecha a conversa atual (mantém na tela /mensagens)
+  // ESC: fecha o lightbox primeiro; se não houver, desseleciona a conversa
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && selectedTelefone) {
-        // não interfere se o foco está em input/textarea (ex.: busca)
+      if (e.key !== 'Escape') return
+      if (lightboxSrc) {
+        setLightboxSrc(null)
+        return
+      }
+      if (selectedTelefone) {
         const target = e.target as HTMLElement | null
         if (target && /^(INPUT|TEXTAREA|SELECT)$/i.test(target.tagName)) return
         setSelectedTelefone(null)
@@ -401,7 +406,7 @@ export default function Mensagens() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [selectedTelefone])
+  }, [selectedTelefone, lightboxSrc])
 
   // Realtime na tabela apontada pelo profile + mensagens_atendente.
   // Obs.: Realtime do Supabase só funciona em TABELAS base — views ficam mudas.
@@ -769,11 +774,10 @@ export default function Mensagens() {
                                 const downloadName = m.nome_arquivo || `arquivo.${ext}`
                                 if (kind === 'image' || kind === 'sticker') {
                                   return (
-                                    <a
-                                      href={src}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="Abrir em tamanho real"
+                                    <button
+                                      type="button"
+                                      onClick={() => setLightboxSrc(src)}
+                                      title="Ampliar imagem"
                                       className="block mb-1 cursor-zoom-in"
                                     >
                                       <img
@@ -785,7 +789,7 @@ export default function Mensagens() {
                                             : 'rounded-md max-w-full max-h-[320px] hover:opacity-90 transition'
                                         }
                                       />
-                                    </a>
+                                    </button>
                                   )
                                 }
                                 if (kind === 'audio') {
@@ -890,6 +894,40 @@ export default function Mensagens() {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Lightbox de imagem */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-fg/80 backdrop-blur-sm p-4"
+          onClick={() => setLightboxSrc(null)}
+          style={{ animation: 'fade-in 180ms ease-out both' }}
+        >
+          <img
+            src={lightboxSrc}
+            alt="Imagem ampliada"
+            className="max-w-full max-h-full rounded-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button
+            type="button"
+            onClick={() => setLightboxSrc(null)}
+            className="absolute top-4 right-4 size-9 grid place-items-center rounded-full bg-surface/90 hover:bg-surface text-fg transition"
+            aria-label="Fechar"
+            title="Fechar (ESC)"
+          >
+            <X className="size-4" />
+          </button>
+          <a
+            href={lightboxSrc}
+            download="imagem.jpg"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-surface/90 hover:bg-surface text-fg text-sm font-medium transition"
+            title="Baixar imagem"
+          >
+            ⬇ Baixar
+          </a>
         </div>
       )}
     </div>
