@@ -16,12 +16,17 @@ const nav = [
   { to: '/usuarios', label: 'Usuários', icon: ShieldCheck, end: false, adminOnly: true },
 ] as const
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+  onNavigate,
+  unread,
+}: {
+  onNavigate?: () => void
+  unread: number
+}) {
   const { session, isAdmin, profile } = useAuth()
   const navigate = useNavigate()
   const email = session?.user?.email ?? ''
   const visibleNav = nav.filter((n) => !n.adminOnly || isAdmin)
-  const { unread } = useUnreadMessages()
 
   async function handleLogout() {
     try {
@@ -171,7 +176,7 @@ export default function Layout() {
 
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 shrink-0 border-r border-border bg-surface flex-col">
-        <SidebarContent />
+        <SidebarContent unread={unreadMsgs} />
       </aside>
 
       {/* Mobile drawer */}
@@ -192,7 +197,7 @@ export default function Layout() {
             >
               <X className="size-4" />
             </button>
-            <SidebarContent onNavigate={() => setDrawerOpen(false)} />
+            <SidebarContent onNavigate={() => setDrawerOpen(false)} unread={unreadMsgs} />
           </aside>
         </div>
       )}
