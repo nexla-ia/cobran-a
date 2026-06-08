@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Search, X, MessageSquare, Loader2, ExternalLink, UserPlus } from 'lucide-react'
+import { Search, X, MessageSquare, Loader2, ExternalLink, UserPlus, Download, ZoomIn, ZoomOut } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
@@ -157,68 +157,86 @@ function formatRelativeDay(iso: string) {
   }
 }
 
-// Lightbox interno: mostra imagem em tamanho médio (encaixa em ~70vh) e
-// permite alternar pra zoom real (100%) ao clicar. Botões de fechar e baixar.
+// Lightbox estilo WhatsApp Web: preto sólido, top bar gradiente fininha
+// com ações (zoom, baixar, fechar), imagem dominando o espaço, transição suave.
 function Lightbox({ src, onClose }: { src: string; onClose: () => void }) {
   const [zoom, setZoom] = useState(false)
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-fg/80 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex flex-col bg-[#0b141a]"
       onClick={onClose}
-      style={{ animation: 'fade-in 180ms ease-out both' }}
+      style={{ animation: 'fade-in 220ms cubic-bezier(0.22,1,0.36,1) both' }}
     >
+      {/* Top bar — gradiente bem sutil pra cima */}
       <div
-        className={`overflow-auto rounded-md shadow-2xl ${
-          zoom ? 'max-w-[95vw] max-h-[90vh]' : 'max-w-[70vw] max-h-[70vh]'
-        }`}
-        onClick={(e) => e.stopPropagation()}
+        className="absolute top-0 left-0 right-0 z-10 h-14 px-3 sm:px-4 flex items-center justify-between"
         style={{
-          background: 'rgba(0,0,0,0.2)',
-          transition: 'max-width 220ms cubic-bezier(0.22,1,0.36,1), max-height 220ms cubic-bezier(0.22,1,0.36,1)',
+          background:
+            'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 60%, transparent 100%)',
         }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-[13px] text-white/85 font-medium tracking-wide">
+          Imagem
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setZoom((z) => !z)
+            }}
+            className="size-10 grid place-items-center rounded-full text-white/85 hover:bg-white/10 transition"
+            title={zoom ? 'Encaixar (1x)' : 'Tamanho real'}
+            aria-label="Alternar zoom"
+          >
+            {zoom ? <ZoomOut className="size-[18px]" /> : <ZoomIn className="size-[18px]" />}
+          </button>
+          <a
+            href={src}
+            download="imagem.jpg"
+            onClick={(e) => e.stopPropagation()}
+            className="size-10 grid place-items-center rounded-full text-white/85 hover:bg-white/10 transition"
+            title="Baixar imagem"
+            aria-label="Baixar"
+          >
+            <Download className="size-[18px]" />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="size-10 grid place-items-center rounded-full text-white/85 hover:bg-white/10 transition"
+            title="Fechar (ESC)"
+            aria-label="Fechar"
+          >
+            <X className="size-[18px]" />
+          </button>
+        </div>
+      </div>
+
+      {/* Área da imagem — ocupa toda a tela menos a top bar */}
+      <div
+        className="flex-1 grid place-items-center overflow-auto px-4 py-16"
+        onClick={onClose}
       >
         <img
           src={src}
-          alt="Imagem ampliada"
-          className={`block ${zoom ? '' : 'object-contain w-full h-full'}`}
-          onClick={() => setZoom((z) => !z)}
-          style={{
-            cursor: zoom ? 'zoom-out' : 'zoom-in',
-            maxWidth: zoom ? 'none' : '100%',
-            maxHeight: zoom ? 'none' : '100%',
-          }}
-        />
-      </div>
-      <button
-        type="button"
-        onClick={onClose}
-        className="absolute top-4 right-4 size-9 grid place-items-center rounded-full bg-surface/90 hover:bg-surface text-fg transition"
-        aria-label="Fechar"
-        title="Fechar (ESC)"
-      >
-        <X className="size-4" />
-      </button>
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
-        <button
-          type="button"
+          alt="Imagem"
           onClick={(e) => {
             e.stopPropagation()
             setZoom((z) => !z)
           }}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-surface/90 hover:bg-surface text-fg text-sm font-medium transition"
-          title="Alternar zoom"
-        >
-          {zoom ? '🔍 Encaixar' : '🔍 Tamanho real'}
-        </button>
-        <a
-          href={src}
-          download="imagem.jpg"
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1.5 h-9 px-3 rounded-md bg-surface/90 hover:bg-surface text-fg text-sm font-medium transition"
-          title="Baixar imagem"
-        >
-          ⬇ Baixar
-        </a>
+          className="select-none"
+          draggable={false}
+          style={{
+            cursor: zoom ? 'zoom-out' : 'zoom-in',
+            maxWidth: zoom ? 'none' : 'min(92vw, 1100px)',
+            maxHeight: zoom ? 'none' : 'calc(100vh - 7rem)',
+            transition:
+              'max-width 240ms cubic-bezier(0.22,1,0.36,1), max-height 240ms cubic-bezier(0.22,1,0.36,1), transform 240ms cubic-bezier(0.22,1,0.36,1)',
+            animation: 'scale-in 280ms cubic-bezier(0.22,1,0.36,1) both',
+          }}
+        />
       </div>
     </div>
   )
